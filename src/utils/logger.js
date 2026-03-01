@@ -40,4 +40,4 @@ function error(context, err, options = {}) {
   console.error("");
 }
 
-module.exports = { info, success, warn, error, LINE, tag };
+module.exports = { info, success, warn, error };

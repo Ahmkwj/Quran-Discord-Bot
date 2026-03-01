@@ -1,25 +1,26 @@
 "use strict";
 
-const { EmbedBuilder } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 
 module.exports = {
-  name: "help",
-  description: "List all commands",
+  data: new SlashCommandBuilder()
+    .setName("help")
+    .setDescription("List all commands"),
 
-  async execute(ctx) {
+  async execute(interaction) {
     const lines = [];
-    for (const [, cmd] of ctx.client.commands) {
-      if (cmd.name && cmd.description) {
-        lines.push(`**${cmd.name}** — ${cmd.description}`);
+    for (const [, cmd] of interaction.client.commands) {
+      if (cmd.data?.name && cmd.data?.description) {
+        lines.push(`**/${cmd.data.name}** — ${cmd.data.description}`);
       }
     }
     const embed = new EmbedBuilder()
       .setColor(0x2b5f4a)
       .setAuthor({ name: "Quran Bot — Commands" })
       .setTitle("All commands")
-      .setDescription("Mention the bot then the command. Example: @Bot play\n\n" + lines.join("\n"))
-      .setFooter({ text: "Use @Bot <command> in any channel" })
+      .setDescription(lines.join("\n"))
+      .setFooter({ text: "Use slash commands: /command" })
       .setTimestamp();
-    await ctx.reply({ embeds: [embed] });
+    await interaction.reply({ embeds: [embed] });
   },
 };

@@ -101,6 +101,4 @@ module.exports = {
   getBoundChannel,
   setBoundChannel,
   clearBoundChannel,
-  CONFIG_PATH,
-  DEFAULTS,
 };

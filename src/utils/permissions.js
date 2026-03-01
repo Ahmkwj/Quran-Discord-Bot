@@ -20,23 +20,23 @@ function isOwnerOrMod(userId) {
   return isOwner(userId) || isMod(userId);
 }
 
-async function requireOwner(ctx, errReply) {
-  if (isOwner(ctx.user.id)) return true;
+async function requireOwner(interaction, errReply) {
+  if (isOwner(interaction.user.id)) return true;
   const owner = getOwnerId();
   const msg = owner
     ? "Only the bot owner can use this command."
     : "Owner is not set. Add OWNER_ID to your .env file.";
-  await ctx.reply(errReply(msg)).catch(() => {});
+  await interaction.reply(errReply(msg)).catch(() => {});
   return false;
 }
 
-async function requireOwnerOrMod(ctx, errReply) {
-  if (isOwnerOrMod(ctx.user.id)) return true;
+async function requireOwnerOrMod(interaction, errReply) {
+  if (isOwnerOrMod(interaction.user.id)) return true;
   const owner = getOwnerId();
   const msg = owner
     ? "Only the bot owner and moderators can use this command."
     : "Owner is not set. Add OWNER_ID to your .env file.";
-  await ctx.reply(errReply(msg)).catch(() => {});
+  await interaction.reply(errReply(msg)).catch(() => {});
   return false;
 }
 
@@ -48,4 +48,3 @@ module.exports = {
   requireOwner,
   requireOwnerOrMod,
 };
-

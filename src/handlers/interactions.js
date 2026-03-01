@@ -6,7 +6,6 @@ const config = require("../utils/config");
 const log = require("../utils/logger");
 const { isOwnerOrMod } = require("../utils/permissions");
 const {
-  buildPanel,
   buildReciterMenu,
   buildReciterSearchModal,
   buildReciterSearchResultsMenu,
@@ -38,20 +37,31 @@ module.exports = {
     const s = player.get(guildId);
     const sess = getSession(userId);
 
+    if (!isOwnerOrMod(userId)) {
+      try {
+        await interaction.reply(
+          errReply("Only the bot owner and moderators can use the panel."),
+        );
+      } catch (_) {}
+      return;
+    }
+
     if (interaction.isModalSubmit()) {
-      if (!isOwnerOrMod(userId)) {
+      const bound = config.getBoundChannel(interaction.guildId);
+      if (
+        bound &&
+        String(interaction.channelId) !== String(bound.commandChannelId)
+      ) {
         try {
-          await interaction.reply(errReply("Only the bot owner and moderators can use the panel."));
+          await interaction.reply(
+            errReply(
+              "Use the panel in the channel where you ran the play command.",
+            ),
+          );
         } catch (_) {}
         return;
       }
-      const boundModal = config.getBoundChannel(interaction.guildId);
-      if (boundModal && String(interaction.channelId) !== String(boundModal.commandChannelId)) {
-        try {
-          await interaction.reply(errReply("Use the panel in the channel where you ran the play command."));
-        } catch (_) {}
-        return;
-      }
+
       if (interaction.customId === "modal_reciter_search") {
         const query = interaction.fields
           .getTextInputValue("reciter_search_query")
@@ -61,18 +71,26 @@ module.exports = {
         try {
           if (matches.length === 0) {
             return interaction.reply(
-              errReply(`No reciters found for "${query}". Try a different search.`)
+              errReply(
+                `No reciters found for "${query}". Try a different search.`,
+              ),
             );
           }
-          const payload = buildReciterSearchResultsMenu(matches, query);
           sess.reciters = matches;
+          const { embeds, components } = buildReciterSearchResultsMenu(
+            matches,
+            query,
+          );
           return interaction.reply({
-            ...payload,
+            embeds,
+            components,
             flags: MessageFlags.Ephemeral,
           });
         } catch (err) {
           log.error("INTERACTION", err);
-          return interaction.reply(errReply("Something went wrong. Please try again.")).catch(() => {});
+          return interaction
+            .reply(errReply("Something went wrong. Please try again."))
+            .catch(() => {});
         }
       }
       return;
@@ -80,36 +98,36 @@ module.exports = {
 
     if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
 
-    if (!isOwnerOrMod(userId)) {
-      try {
-        await interaction.reply(errReply("Only the bot owner and moderators can use the panel."));
-      } catch (_) {}
-      return;
-    }
-
     const bound = config.getBoundChannel(guildId);
-    if (bound && String(interaction.channelId) !== String(bound.commandChannelId)) {
+    if (
+      bound &&
+      String(interaction.channelId) !== String(bound.commandChannelId)
+    ) {
       try {
-        await interaction.reply(errReply("Use the panel in the channel where you ran the play command."));
+        await interaction.reply(
+          errReply(
+            "Use the panel in the channel where you ran the play command.",
+          ),
+        );
       } catch (_) {}
       return;
-    }
-
-    async function refreshMain() {
-      await player.refreshPanel(guildId);
     }
 
     async function ensureConnection() {
-      if (bound && !s.connection) await player.ensureInBoundChannel(guildId);
+      if (bound && !s.connection) {
+        const ch = await interaction.client.channels.fetch(bound.voiceChannelId);
+        if (ch?.isVoiceBased?.()) {
+          await player.connect(ch);
+        }
+      }
     }
 
     async function epErr(msg) {
-      const payload = errReply(msg);
       try {
         if (interaction.replied || interaction.deferred) {
-          await interaction.followUp(payload);
+          await interaction.followUp(errReply(msg));
         } else {
-          await interaction.reply(payload);
+          await interaction.reply(errReply(msg));
         }
       } catch (_) {}
     }
@@ -119,23 +137,23 @@ module.exports = {
         await interaction.deferUpdate();
         await ensureConnection();
         if (!player.pause(guildId))
-          return epErr("Nothing is playing. Choose a reciter and surah first.");
-        await refreshMain();
+          return epErr("Nothing is playing.");
+        await player.updatePanel(guildId);
         return;
       }
 
       if (interaction.customId === "btn_resume") {
         await interaction.deferUpdate();
         await ensureConnection();
-        if (!player.resume(guildId)) return epErr("Playback is not paused. Nothing to resume.");
-        await refreshMain();
+        if (!player.resume(guildId))
+          return epErr("Playback is not paused.");
+        await player.updatePanel(guildId);
         return;
       }
 
       if (interaction.customId === "btn_stop") {
         await interaction.deferUpdate();
-        player.stop(guildId);
-        await refreshMain();
+        await player.resetToWelcome(guildId);
         return;
       }
 
@@ -143,8 +161,8 @@ module.exports = {
         await interaction.deferUpdate();
         await ensureConnection();
         const ok = await player.skipNext(guildId);
-        if (!ok) return epErr("There is no next surah in the queue.");
-        await refreshMain();
+        if (!ok) return epErr("No next surah.");
+        await player.updatePanel(guildId);
         return;
       }
 
@@ -152,58 +170,54 @@ module.exports = {
         await interaction.deferUpdate();
         await ensureConnection();
         const ok = await player.skipPrev(guildId);
-        if (!ok) return epErr("There is no previous surah in the queue.");
-        await refreshMain();
+        if (!ok) return epErr("No previous surah.");
+        await player.updatePanel(guildId);
         return;
       }
 
       if (interaction.customId === "btn_vol_up") {
         await interaction.deferUpdate();
         player.setVolume(guildId, s.volume + 10);
-        await refreshMain();
+        await player.updatePanel(guildId);
         return;
       }
 
       if (interaction.customId === "btn_vol_down") {
         await interaction.deferUpdate();
         player.setVolume(guildId, s.volume - 10);
-        await refreshMain();
+        await player.updatePanel(guildId);
         return;
       }
 
       if (interaction.customId === "btn_repeat") {
         await interaction.deferUpdate();
         player.cycleRepeat(guildId);
-        await refreshMain();
+        await player.updatePanel(guildId);
         return;
       }
 
       if (interaction.customId === "btn_autonext") {
         await interaction.deferUpdate();
         s.autoNext = !s.autoNext;
-        await refreshMain();
+        await player.updatePanel(guildId);
         return;
       }
 
       if (interaction.customId === "btn_disconnect") {
         await interaction.deferUpdate();
-        if (bound) {
-          player.stop(guildId);
-          s.queue = [];
-          s.queueIndex = 0;
-        } else {
-          player.destroy(guildId);
-        }
+        await player.disconnect(guildId);
         if (s.controlChannelId && s.controlMsgId) {
           try {
-            const ch = await interaction.client.channels.fetch(s.controlChannelId);
+            const ch = await interaction.client.channels.fetch(
+              s.controlChannelId,
+            );
             const msg = await ch.messages.fetch(s.controlMsgId);
             await msg.edit({
               embeds: [
                 new EmbedBuilder()
                   .setColor(0x2b5f4a)
-                  .setAuthor({ name: bound ? "Stopped" : "Disconnected" })
-                  .setDescription(bound ? "Playback stopped. Use the play command to open the panel again." : "Use the play command to begin again.")
+                  .setAuthor({ name: "Disconnected" })
+                  .setDescription("Use the play command to begin again.")
                   .setTimestamp(),
               ],
               components: [],
@@ -215,15 +229,17 @@ module.exports = {
 
       if (interaction.customId === "btn_play_all") {
         await interaction.deferUpdate();
-        if (!s.moshaf) return epErr("Choose a reciter first, then you can play all.");
+        if (!s.moshaf)
+          return epErr("Choose a reciter first.");
         await ensureConnection();
-        if (bound && !s.connection) return epErr("Could not reconnect to the voice channel. Try again or run the play command.");
+        if (bound && !s.connection)
+          return epErr("Could not connect to voice channel.");
         const all = parseSurahList(s.moshaf.surah_list);
         if (!all.length)
-          return epErr("No surahs available for this recitation.");
+          return epErr("No surahs available.");
         s.queue = all;
         s.queueIndex = 0;
-        await player.play(guildId, all[0]);
+        await player.startNewPlayback(guildId, all[0]);
         return;
       }
 
@@ -231,13 +247,19 @@ module.exports = {
         let reciters;
         try {
           reciters = await fetchReciters();
-        } catch (e) {
-          return interaction.reply(errReply("Could not load reciters. Try again later."));
+        } catch {
+          return interaction.reply(
+            errReply("Could not load reciters. Try again later."),
+          );
         }
         sess.reciters = reciters;
         sess.allReciters = reciters;
-        const payload = buildReciterMenu(reciters);
-        return interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
+        const { embeds, components } = buildReciterMenu(reciters);
+        return interaction.reply({
+          embeds,
+          components,
+          flags: MessageFlags.Ephemeral,
+        });
       }
 
       if (interaction.customId === "btn_reciter_search") {
@@ -251,35 +273,39 @@ module.exports = {
       }
 
       if (interaction.customId === "menu_reciter") {
-        const rid = parseInt(interaction.values[0]);
+        const rid = parseInt(interaction.values[0], 10);
         const reciter = (sess.reciters || []).find((r) => r.id === rid);
         if (!reciter)
-          return interaction.reply(errReply("Reciter not found. Try choosing again from the list."));
+          return interaction.reply(
+            errReply("Reciter not found."),
+          );
 
         sess.reciter = reciter;
 
         if (reciter.moshaf.length === 1) {
           sess.moshaf = reciter.moshaf[0];
+          const { embeds, components } = buildSurahMenu(sess.moshaf);
           await interaction.deferUpdate();
-          const payload = buildSurahMenu(sess.moshaf);
-          await interaction.editReply({ ...payload });
+          await interaction.editReply({ embeds, components });
         } else {
+          const { embeds, components } = buildMoshafMenu(reciter);
           await interaction.deferUpdate();
-          const payload = buildMoshafMenu(reciter);
-          await interaction.editReply({ ...payload });
+          await interaction.editReply({ embeds, components });
         }
         return;
       }
 
       if (interaction.customId === "menu_moshaf") {
-        const mid = parseInt(interaction.values[0]);
+        const mid = parseInt(interaction.values[0], 10);
         const moshaf = (sess.reciter?.moshaf || []).find((m) => m.id === mid);
         if (!moshaf)
-          return interaction.reply(errReply("Recitation not found. Try choosing again from the list."));
+          return interaction.reply(
+            errReply("Recitation not found."),
+          );
         sess.moshaf = moshaf;
+        const { embeds, components } = buildSurahMenu(moshaf);
         await interaction.deferUpdate();
-        const payload = buildSurahMenu(moshaf);
-        await interaction.editReply({ ...payload });
+        await interaction.editReply({ embeds, components });
         return;
       }
 
@@ -289,17 +315,42 @@ module.exports = {
         return;
       }
 
-      if (interaction.customId === "surah_play_all") {
+      if (interaction.customId.startsWith("menu_surah_")) {
+        const value = interaction.values[0];
+
+        if (value === "surah_cancel") {
+          await interaction.deferUpdate();
+          await interaction.deleteReply().catch(() => {});
+          return;
+        }
+
+        const surahNum = parseInt(value, 10);
+        if (!Number.isFinite(surahNum)) {
+          await interaction.deferUpdate();
+          return;
+        }
+
+        if (!sess.reciter || !sess.moshaf) {
+          await interaction.deferUpdate();
+          return epErr("Selection expired. Click Pick Reciter again.");
+        }
+
         await interaction.deferUpdate();
+
         s.reciter = sess.reciter;
         s.moshaf = sess.moshaf;
+
         await ensureConnection();
-        if (bound && !s.connection) return epErr("Could not reconnect to the voice channel. Try again or run the play command.");
-        const all = parseSurahList(sess.moshaf.surah_list);
-        s.queue = all;
+        if (bound && !s.connection) {
+          return epErr("Could not connect to voice channel.");
+        }
+
+        s.queue = [surahNum];
         s.queueIndex = 0;
+
         await interaction.deleteReply().catch(() => {});
-        await player.play(guildId, all[0]);
+
+        await player.startNewPlayback(guildId, surahNum);
         return;
       }
 
@@ -309,34 +360,40 @@ module.exports = {
         return;
       }
 
-      if (interaction.customId.startsWith("menu_surah_")) {
-        const value = interaction.values[0];
-        if (value === "surah_cancel") {
-          await interaction.deferUpdate();
-          await interaction.deleteReply().catch(() => {});
-          return;
-        }
-        const surahNum = parseInt(value, 10);
-        if (!Number.isFinite(surahNum)) return;
+      if (interaction.customId === "surah_play_all") {
         await interaction.deferUpdate();
+        if (!sess.reciter || !sess.moshaf) {
+          return epErr("Selection expired. Click Pick Reciter again.");
+        }
         s.reciter = sess.reciter;
         s.moshaf = sess.moshaf;
         await ensureConnection();
-        if (bound && !s.connection) return epErr("Could not reconnect to the voice channel. Try again or run the play command.");
-        s.queue = [surahNum];
+        if (bound && !s.connection) {
+          return epErr("Could not connect to voice channel.");
+        }
+        const all = parseSurahList(sess.moshaf.surah_list);
+        if (!all.length)
+          return epErr("No surahs available.");
+        s.queue = all;
         s.queueIndex = 0;
         await interaction.deleteReply().catch(() => {});
-        await player.play(guildId, surahNum);
+        await player.startNewPlayback(guildId, all[0]);
         return;
       }
 
       if (interaction.customId === "btn_pick_surah") {
         if (!s.moshaf)
-          return interaction.reply(errReply("Choose a reciter first, then you can pick a surah."));
+          return interaction.reply(
+            errReply("Choose a reciter first."),
+          );
         sess.reciter = s.reciter;
         sess.moshaf = s.moshaf;
-        const payload = buildSurahMenu(s.moshaf);
-        return interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
+        const { embeds, components } = buildSurahMenu(s.moshaf);
+        return interaction.reply({
+          embeds,
+          components,
+          flags: MessageFlags.Ephemeral,
+        });
       }
     } catch (err) {
       log.error("INTERACTION", err);

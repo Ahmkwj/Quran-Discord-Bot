@@ -32,9 +32,7 @@ function statusLabel(s) {
 function buildMainEmbed(s) {
   const surah = s.queue.length ? getSurah(s.queue[s.queueIndex]) : null;
 
-  const embed = new EmbedBuilder()
-    .setColor(EMBED_COLOR)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setColor(EMBED_COLOR).setTimestamp();
 
   if (surah) {
     embed.setTitle(`${surah.ar}  \u00B7  Surah ${surah.n} of 114`);
@@ -49,7 +47,7 @@ function buildMainEmbed(s) {
       { name: "Status", value: statusLabel(s), inline: true },
       { name: "Volume", value: `${s.volume}%`, inline: true },
       { name: "Repeat", value: repeatLabel(s.repeat), inline: true },
-      { name: "Auto-next", value: s.autoNext ? "On" : "Off", inline: true }
+      { name: "Auto-next", value: s.autoNext ? "On" : "Off", inline: true },
     );
 
     if (s.queue.length > 1) {
@@ -65,7 +63,7 @@ function buildMainEmbed(s) {
     embed.setTitle("Quran Bot");
     embed.setDescription(
       "**بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ**\n\n" +
-        "Choose **Pick reciter** below to select a reciter and surah."
+        "Choose **Pick reciter** below to select a reciter and surah.",
     );
     embed.setFooter({ text: "Use the buttons below to get started" });
   }
@@ -85,33 +83,38 @@ function buildButtons(s) {
   const hasTrack = s.queue.length > 0;
   const isPlaying = s.playing || s.paused;
   const canPrev = hasTrack && s.queueIndex > 0;
-  const canNext = hasTrack && (s.queueIndex < s.queue.length - 1 || s.repeat === "all");
+  const canNext =
+    hasTrack && (s.queueIndex < s.queue.length - 1 || s.repeat === "all");
   const canPauseResume = hasTrack && isPlaying;
   const canStop = isPlaying;
 
   const rows = [];
 
-  const playback = [];
-  if (canPrev) playback.push(btn("btn_prev", "Previous", "⏮️"));
-  if (canPauseResume) {
-    playback.push(
-      btn(s.paused ? "btn_resume" : "btn_pause", s.paused ? "Resume" : "Pause", s.paused ? "▶️" : "⏸️")
-    );
-  }
-  if (canNext) playback.push(btn("btn_next", "Next", "⏭️"));
-  if (canStop) playback.push(btn("btn_stop", "Stop", "⏹️"));
-  if (playback.length > 0) {
+  if (canPrev || canPauseResume || canNext || canStop) {
+    const playback = [];
+    if (canPrev) playback.push(btn("btn_prev", "Previous", "⏮️"));
+    if (canPauseResume) {
+      playback.push(
+        btn(
+          s.paused ? "btn_resume" : "btn_pause",
+          s.paused ? "Resume" : "Pause",
+          s.paused ? "▶️" : "⏸️",
+        ),
+      );
+    }
+    if (canNext) playback.push(btn("btn_next", "Next", "⏭️"));
+    if (canStop) playback.push(btn("btn_stop", "Stop", "⏹️"));
     rows.push(new ActionRowBuilder().addComponents(playback));
   }
 
-  if (s.moshaf) {
+  if (hasTrack && s.moshaf) {
     const settings = [
       btn("btn_vol_down", "Vol -", "🔉"),
       btn("btn_vol_up", "Vol +", "🔊"),
       btn(
         "btn_repeat",
         s.repeat === "none" ? "Repeat" : s.repeat === "one" ? "One" : "All",
-        s.repeat === "one" ? "🔂" : "🔁"
+        s.repeat === "one" ? "🔂" : "🔁",
       ),
       btn("btn_autonext", "Auto-next", s.autoNext ? "✅" : "❌"),
     ];
@@ -119,7 +122,7 @@ function buildButtons(s) {
   }
 
   const nav = [btn("btn_pick_reciter", "Pick reciter", "🎙️")];
-  if (s.moshaf) {
+  if (hasTrack && s.moshaf) {
     nav.push(btn("btn_pick_surah", "Pick surah", "📜"));
     nav.push(btn("btn_play_all", "Play all", "🎵"));
   }
@@ -146,7 +149,7 @@ function buildReciterMenu(reciters) {
     .setAuthor({ name: "🎙️ Select Reciter" })
     .setDescription(
       `**${reciters.length}** reciters available.\n\n` +
-        "Pick one from the list below, or use **Search by name** to find a specific reciter."
+        "Pick one from the list below, or use **Search by name** to find a specific reciter.",
     )
     .addFields({
       name: "\u200b",
@@ -165,12 +168,12 @@ function buildReciterMenu(reciters) {
         description: `${r.moshaf.length} recitation(s)`,
         value: String(r.id),
         emoji: "🎙️",
-      }))
+      })),
     );
 
   const row2 = new ActionRowBuilder().addComponents(
     btn("btn_reciter_search", "Search by name", "🔍"),
-    btn("reciter_cancel", "Cancel", "✖️")
+    btn("reciter_cancel", "Cancel", "✖️"),
   );
 
   return {
@@ -203,7 +206,7 @@ function buildReciterSearchResultsMenu(reciters, query) {
     .setAuthor({ name: "🔍 Search Results" })
     .setDescription(
       `Found **${reciters.length}** reciter(s) for \`${query}\`.\n\n` +
-        "Select one from the list below."
+        "Select one from the list below.",
     )
     .setFooter({ text: "Select a reciter" })
     .setTimestamp();
@@ -217,10 +220,12 @@ function buildReciterSearchResultsMenu(reciters, query) {
         description: `${r.moshaf.length} recitation(s)`,
         value: String(r.id),
         emoji: "🎙️",
-      }))
+      })),
     );
 
-  const row2 = new ActionRowBuilder().addComponents(btn("reciter_cancel", "Cancel", "✖️"));
+  const row2 = new ActionRowBuilder().addComponents(
+    btn("reciter_cancel", "Cancel", "✖️"),
+  );
 
   return {
     embeds: [embed],
@@ -235,7 +240,7 @@ function buildMoshafMenu(reciter) {
     .setAuthor({ name: `📖 ${reciter.name}` })
     .setDescription(
       "This reciter has **multiple recitations**.\n\n" +
-        "Choose the recitation style you want from the list below."
+        "Choose the recitation style you want from the list below.",
     )
     .addFields({
       name: "\u200b",
@@ -254,10 +259,12 @@ function buildMoshafMenu(reciter) {
         description: `${m.surah_total} surahs`,
         value: String(m.id),
         emoji: "📖",
-      }))
+      })),
     );
 
-  const cancelRow = new ActionRowBuilder().addComponents(btn("moshaf_cancel", "Cancel", "✖️"));
+  const cancelRow = new ActionRowBuilder().addComponents(
+    btn("moshaf_cancel", "Cancel", "✖️"),
+  );
 
   return {
     embeds: [embed],
@@ -277,7 +284,7 @@ function buildSurahMenu(moshaf) {
     .setDescription(
       `**Recitation:** ${moshaf.name}\n\n` +
         "**114 surahs** — choose from the dropdowns below.\n\n" +
-        "Use **Play all** on the main panel to play the full Quran."
+        "Use **Play all** on the main panel to play the full Quran.",
     )
     .setFooter({ text: "Choose a surah from the lists" })
     .setTimestamp();
@@ -285,8 +292,10 @@ function buildSurahMenu(moshaf) {
   const rows = [];
   const firstRowSize = 24;
   for (let rowIndex = 0; rowIndex < 5; rowIndex++) {
-    const start = rowIndex === 0 ? 0 : firstRowSize + (rowIndex - 1) * SURAHS_PER_MENU;
-    const count = rowIndex === 0 ? firstRowSize : rowIndex === 4 ? 15 : SURAHS_PER_MENU;
+    const start =
+      rowIndex === 0 ? 0 : firstRowSize + (rowIndex - 1) * SURAHS_PER_MENU;
+    const count =
+      rowIndex === 0 ? firstRowSize : rowIndex === 4 ? 15 : SURAHS_PER_MENU;
     const slice = surahList.slice(start, start + count);
     if (slice.length === 0) break;
     const options = slice.map((n) => {
@@ -299,12 +308,19 @@ function buildSurahMenu(moshaf) {
       };
     });
     if (rowIndex === 0) {
-      options.push({ label: "Cancel", description: "Close menu", value: "surah_cancel", emoji: "✖️" });
+      options.push({
+        label: "Cancel",
+        description: "Close menu",
+        value: "surah_cancel",
+        emoji: "✖️",
+      });
     }
     const menu = new StringSelectMenuBuilder()
       .setCustomId(`menu_surah_${rowIndex}`)
       .setPlaceholder(
-        rowIndex === 0 ? "Surahs 1\u201324 or Cancel" : `Surahs ${start + 1}\u2013${start + count}`
+        rowIndex === 0
+          ? "Surahs 1\u201324 or Cancel"
+          : `Surahs ${start + 1}\u2013${start + count}`,
       )
       .addOptions(options);
     rows.push(new ActionRowBuilder().addComponents(menu));

@@ -1,6 +1,6 @@
 "use strict";
 
-const { ActivityType } = require("discord.js");
+const { SlashCommandBuilder, ActivityType } = require("discord.js");
 const { errReply, successReply } = require("../utils/panel");
 const { requireOwnerOrMod } = require("../utils/permissions");
 const config = require("../utils/config");
@@ -13,19 +13,38 @@ const TYPE_MAP = {
 };
 
 module.exports = {
-  name: "setstatus",
-  description: "(Owner/Mod) Set the bot presence. Usage: @Bot setstatus Playing Use play to begin",
+  data: new SlashCommandBuilder()
+    .setName("setstatus")
+    .setDescription("Set the bot presence (Owner/Mod only)")
+    .addStringOption(option =>
+      option
+        .setName("type")
+        .setDescription("Activity type")
+        .setRequired(true)
+        .addChoices(
+          { name: "Playing", value: "Playing" },
+          { name: "Listening", value: "Listening" },
+          { name: "Watching", value: "Watching" },
+          { name: "Competing", value: "Competing" }
+        )
+    )
+    .addStringOption(option =>
+      option
+        .setName("text")
+        .setDescription("Status text")
+        .setRequired(true)
+    ),
 
-  async execute(ctx) {
-    if (!(await requireOwnerOrMod(ctx, errReply))) return;
-    const type = ctx.options.getString("type") || ctx.args[0] || "Playing";
-    const text = (ctx.options.getString("text") || ctx.rest || "Use play to begin").trim() || "Use play to begin";
+  async execute(interaction) {
+    if (!(await requireOwnerOrMod(interaction, errReply))) return;
+    const type = interaction.options.getString("type");
+    const text = interaction.options.getString("text");
     const activityType = TYPE_MAP[type] || ActivityType.Playing;
     config.setActivity(type, text);
-    ctx.client.user.setPresence({
+    interaction.client.user.setPresence({
       activities: [{ name: text, type: activityType }],
       status: "online",
     });
-    await ctx.reply(successReply(`Status updated. Presence set to ${type}: ${text}.`));
+    await interaction.reply(successReply(`Status updated. Presence set to ${type}: ${text}.`));
   },
 };

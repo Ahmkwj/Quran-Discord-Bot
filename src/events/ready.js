@@ -27,7 +27,6 @@ module.exports = {
   async execute(client) {
     player.setClient(client);
     log.success("READY", `Logged in as ${client.user.tag}`);
-    log.info("READY", `Connected to ${client.guilds.cache.size} server(s)`);
     applyPresence(client);
     const c = config.load();
     const boundChannels = c.boundChannels || {};

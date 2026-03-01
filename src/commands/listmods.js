@@ -1,21 +1,23 @@
 "use strict";
 
+const { SlashCommandBuilder } = require("discord.js");
 const { errReply, successReply } = require("../utils/panel");
 const { requireOwner, getOwnerId } = require("../utils/permissions");
 const config = require("../utils/config");
 
 module.exports = {
-  name: "listmods",
-  description: "(Owner) List bot owner and moderators",
+  data: new SlashCommandBuilder()
+    .setName("listmods")
+    .setDescription("List bot owner and moderators (Owner only)"),
 
-  async execute(ctx) {
-    if (!(await requireOwner(ctx, errReply))) return;
+  async execute(interaction) {
+    if (!(await requireOwner(interaction, errReply))) return;
     const ownerId = getOwnerId();
     const mods = config.getMods();
     const lines = [];
     if (ownerId) {
       try {
-        const owner = await ctx.client.users.fetch(ownerId).catch(() => null);
+        const owner = await interaction.client.users.fetch(ownerId).catch(() => null);
         lines.push(`**Owner:** ${owner ? owner.tag : "Unknown"} (\`${ownerId}\`)`);
       } catch {
         lines.push(`**Owner:** \`${ownerId}\``);
@@ -24,12 +26,12 @@ module.exports = {
       lines.push("**Owner:** Not set (add OWNER_ID to .env)");
     }
     if (mods.length === 0) {
-      lines.push("**Mods:** None. Use addmod to add moderators.");
+      lines.push("**Mods:** None. Use /addmod to add moderators.");
     } else {
       const modList = await Promise.all(
         mods.map(async (id) => {
           try {
-            const u = await ctx.client.users.fetch(id).catch(() => null);
+            const u = await interaction.client.users.fetch(id).catch(() => null);
             return u ? `${u.tag} (\`${id}\`)` : `\`${id}\``;
           } catch {
             return `\`${id}\``;
@@ -38,6 +40,6 @@ module.exports = {
       );
       lines.push("**Mods:** " + modList.join(", "));
     }
-    await ctx.reply(successReply("Owner and moderators\n\n" + lines.join("\n")));
+    await interaction.reply(successReply("Owner and moderators\n\n" + lines.join("\n")));
   },
 };
