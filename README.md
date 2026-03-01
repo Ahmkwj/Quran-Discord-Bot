@@ -134,10 +134,27 @@ After that, when you use `/restart`, PM2 will start the bot again.
 
 In the Discord Developer Portal, open your application, go to OAuth2 > URL Generator, and select:
 
-- Scopes: `bot`, `applications.commands`
-- Bot permissions: View Channels, Send Messages, Embed Links, Use Slash Commands, Connect, Speak
+- **Scopes:** `bot`, `applications.commands`
+- **Bot permissions:** View Channels, Send Messages, Embed Links, Use Application Commands, Connect, Speak
 
 Use the generated URL to invite the bot to your server. Ensure the bot has Connect and Speak in the voice channel you use.
+
+### Required permissions (exact list)
+
+The bot needs these permissions to work. Each has a permission bit; the combined integer is below.
+
+| Permission | Purpose | Permission code |
+|------------|---------|-----------------|
+| View Channels | See channels and respond in them | 1024 |
+| Send Messages | Send the control panel and command replies | 2048 |
+| Embed Links | Send embeds (panel, help, errors) | 16384 |
+| Use Application Commands | Let users use slash commands | 2147483648 |
+| Connect | Join voice channels | 1048576 |
+| Speak | Play audio in voice | 2097152 |
+
+**Combined permission integer (use in OAuth2 URL):** `2150648832`
+
+You can append `&permissions=2150648832` to your invite URL to request exactly these permissions. In the URL Generator, ticking the six permissions above gives the same result.
 
 ---
 
