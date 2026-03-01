@@ -1,6 +1,5 @@
 "use strict";
 
-const { SlashCommandBuilder } = require("discord.js");
 const player = require("../utils/player");
 const config = require("../utils/config");
 const { buildPanel, errReply } = require("../utils/panel");
@@ -8,16 +7,15 @@ const log = require("../utils/logger");
 const { isOwnerOrMod, getOwnerId } = require("../utils/permissions");
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName("play")
-    .setDescription("Start the Quran bot panel"),
+  name: "play",
+  description: "Start the Quran bot panel",
 
-  async execute(interaction) {
-    const { guild, channel, member } = interaction;
+  async execute(ctx) {
+    const { guild, channel, member } = ctx;
 
-    if (!isOwnerOrMod(interaction.user.id)) {
+    if (!isOwnerOrMod(ctx.user.id)) {
       const owner = getOwnerId();
-      return interaction.reply(
+      return ctx.reply(
         errReply(
           owner
             ? "Only the bot owner and moderators can use this command."
@@ -28,17 +26,17 @@ module.exports = {
 
     const voiceChannel = member?.voice?.channel;
     if (!voiceChannel || !voiceChannel.isVoiceBased()) {
-      return interaction.reply(errReply("You must be in a voice channel to use this command."));
+      return ctx.reply(errReply("You must be in a voice channel to use play."));
     }
 
     if (!channel?.isTextBased?.() || channel.isDMBased?.()) {
-      return interaction.reply(errReply("Use this command in a server text channel."));
+      return ctx.reply(errReply("Use this command in a server text channel."));
     }
 
     const botMember = guild.members.me;
     const perms = voiceChannel.permissionsFor(botMember);
     if (!perms?.has("Connect") || !perms?.has("Speak")) {
-      return interaction.reply(
+      return ctx.reply(
         errReply("The bot needs Connect and Speak permissions in that voice channel."),
       );
     }
@@ -49,10 +47,8 @@ module.exports = {
 
     try {
       const { embeds, components } = buildPanel(s);
-      await interaction.reply({ embeds, components });
-      
-      const reply = await interaction.fetchReply();
-      s.controlMsgId = reply.id;
+      const sent = await channel.send({ embeds, components });
+      s.controlMsgId = sent.id;
 
       config.setBoundChannel(guild.id, voiceChannel.id, channel.id);
 
@@ -60,7 +56,7 @@ module.exports = {
     } catch (e) {
       log.error("PLAY", e);
       try {
-        await interaction.reply(errReply("Could not send the panel. Check bot permissions."));
+        await ctx.reply(errReply("Could not send the panel. Check bot permissions."));
       } catch (_) {}
     }
   },

@@ -26,6 +26,8 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
   ],
   partials: [Partials.Channel],
 });
@@ -35,13 +37,16 @@ client.commands = new Collection();
 const cmdDir = path.join(__dirname, "commands");
 for (const file of fs.readdirSync(cmdDir).filter((f) => f.endsWith(".js"))) {
   const cmd = require(path.join(cmdDir, file));
-  if (cmd.data && cmd.execute) {
-    client.commands.set(cmd.data.name, cmd);
+  if (cmd.name && cmd.execute) {
+    client.commands.set(cmd.name, cmd);
   }
 }
 
 const readyEvent = require("./events/ready");
 client.once("clientReady", (...a) => readyEvent.execute(...a));
+
+const cmdHandler = require("./handlers/commands");
+client.on(cmdHandler.name, (m) => cmdHandler.execute(m, client));
 
 const intHandler = require("./handlers/interactions");
 client.on(intHandler.name, (i) => intHandler.execute(i));

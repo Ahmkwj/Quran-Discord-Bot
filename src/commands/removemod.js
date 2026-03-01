@@ -1,28 +1,23 @@
 "use strict";
 
-const { SlashCommandBuilder } = require("discord.js");
 const { errReply, successReply } = require("../utils/panel");
 const { requireOwner } = require("../utils/permissions");
 const config = require("../utils/config");
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName("removemod")
-    .setDescription("Remove a user from bot moderators (Owner only)")
-    .addUserOption(option =>
-      option
-        .setName("user")
-        .setDescription("The user to remove from moderators")
-        .setRequired(true)
-    ),
+  name: "removemod",
+  description: "(Owner) Remove a user from bot moderators. Usage: @Bot removemod @user",
 
-  async execute(interaction) {
-    if (!(await requireOwner(interaction, errReply))) return;
-    const user = interaction.options.getUser("user");
+  async execute(ctx) {
+    if (!(await requireOwner(ctx, errReply))) return;
+    const user = ctx.options.getUser();
+    if (!user) {
+      return ctx.reply(errReply("Mention a user to remove. Example: @Bot removemod @username"));
+    }
     const removed = config.removeMod(user.id);
     if (!removed) {
-      return interaction.reply(errReply(`${user.tag} is not a moderator.`));
+      return ctx.reply(errReply(`${user.tag} is not a moderator.`));
     }
-    await interaction.reply(successReply(`${user.tag} has been removed from moderators.`));
+    await ctx.reply(successReply(`${user.tag} has been removed from moderators.`));
   },
 };

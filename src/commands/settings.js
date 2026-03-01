@@ -1,6 +1,6 @@
 "use strict";
 
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const config = require("../utils/config");
 const { requireOwnerOrMod, getOwnerId } = require("../utils/permissions");
 const { errReply } = require("../utils/panel");
@@ -8,14 +8,13 @@ const { errReply } = require("../utils/panel");
 const EMBED_COLOR = 0x2b5f4a;
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName("settings")
-    .setDescription("Show current bot settings (Owner/Mod only)"),
+  name: "settings",
+  description: "(Owner/Mod) Show current bot settings",
 
-  async execute(interaction) {
-    if (!(await requireOwnerOrMod(interaction, errReply))) return;
+  async execute(ctx) {
+    if (!(await requireOwnerOrMod(ctx, errReply))) return;
 
-    const guildId = interaction.guild?.id;
+    const guildId = ctx.guild?.id;
     const ownerId = getOwnerId();
     const mods = config.getMods();
     const activity = config.getActivity();
@@ -25,7 +24,7 @@ module.exports = {
     let ownerText = "Not set (add OWNER_ID to .env)";
     if (ownerId) {
       try {
-        const owner = await interaction.client.users.fetch(ownerId).catch(() => null);
+        const owner = await ctx.client.users.fetch(ownerId).catch(() => null);
         ownerText = owner ? `${owner.tag} (\`${ownerId}\`)` : `\`${ownerId}\``;
       } catch {
         ownerText = `\`${ownerId}\``;
@@ -37,7 +36,7 @@ module.exports = {
       const modList = await Promise.all(
         mods.map(async (id) => {
           try {
-            const u = await interaction.client.users.fetch(id).catch(() => null);
+            const u = await ctx.client.users.fetch(id).catch(() => null);
             return u ? `${u.tag} (\`${id}\`)` : `\`${id}\``;
           } catch {
             return `\`${id}\``;
@@ -47,9 +46,9 @@ module.exports = {
       modsText = modList.join(", ");
     }
 
-    const activityText = `${activity.type || "Playing"}: ${activity.name || "Use /play to begin"}`;
+    const activityText = `${activity.type || "Playing"}: ${activity.name || "Use play to begin"}`;
 
-    let boundText = "Not set (run /play in a channel to set)";
+    let boundText = "Not set (run play in a channel to set)";
     if (bound && bound.voiceChannelId && bound.commandChannelId) {
       boundText = `Voice: <#${bound.voiceChannelId}>\nCommand channel: <#${bound.commandChannelId}>`;
     }
@@ -66,6 +65,6 @@ module.exports = {
         { name: "Bound channel", value: boundText, inline: false }
       );
 
-    await interaction.reply({ embeds: [embed] });
+    await ctx.reply({ embeds: [embed] });
   },
 };
