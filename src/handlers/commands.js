@@ -1,9 +1,11 @@
-'use strict';
+"use strict";
 
-const { errEmbed } = require('../utils/panel');
+const { MessageFlags } = require("discord.js");
+const { errEmbed } = require("../utils/panel");
+const log = require("../utils/logger");
 
 module.exports = {
-  name: 'interactionCreate',
+  name: "interactionCreate",
 
   async execute(interaction, client) {
     if (!interaction.isChatInputCommand()) return;
@@ -13,12 +15,16 @@ module.exports = {
     try {
       await cmd.execute(interaction);
     } catch (err) {
-      console.error(`[Command /${interaction.commandName}]`, err);
-      const payload = { embeds: [errEmbed(`Error: ${err.message}`)], ephemeral: true };
+      log.error(`CMD /${interaction.commandName}`, err);
+      const payload = {
+        embeds: [errEmbed(`Error: ${err.message}`)],
+        flags: MessageFlags.Ephemeral,
+      };
       try {
-        if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
+        if (interaction.replied || interaction.deferred)
+          await interaction.followUp(payload);
         else await interaction.reply(payload);
       } catch (_) {}
     }
-  }
+  },
 };

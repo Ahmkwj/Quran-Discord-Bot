@@ -8,16 +8,15 @@ const {
   StringSelectMenuBuilder,
   ModalBuilder,
   TextInputBuilder,
-  TextInputStyle
-} = require('discord.js');
+  TextInputStyle,
+  MessageFlags,
+} = require("discord.js");
 
-const { getSurah } = require('./surahs');
-const { parseSurahList } = require('./api');
+const { getSurah } = require("./surahs");
+const { parseSurahList } = require("./api");
 
-// Single neutral palette
 const EMBED_COLOR = 0x3d3d3d;
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
 function volumeDisplay(v) {
   const filled = Math.round(v / 10);
   const empty = 10 - filled;
@@ -32,12 +31,11 @@ function repeatLabel(r) {
 }
 
 function statusLabel(s) {
-  if (!s.playing && !s.paused) return 'Stopped';
-  if (s.paused) return 'Paused';
-  return 'Playing';
+  if (!s.playing && !s.paused)   return "Stopped";
+  if (s.paused) return "Paused";
+  return "Playing";
 }
 
-// ── Main panel embed ─────────────────────────────────────────────────────────
 function buildMainEmbed(s) {
   const surah = s.queue.length ? getSurah(s.queue[s.queueIndex]) : null;
 
@@ -84,7 +82,6 @@ function buildMainEmbed(s) {
   return embed;
 }
 
-// ── Button rows (only enabled buttons; max 5 per row) ─────────────────────────
 function buildButtons(s) {
   const hasTrack = s.queue.length > 0;
   const isPlaying = s.playing || s.paused;
@@ -95,7 +92,6 @@ function buildButtons(s) {
 
   const rows = [];
 
-  // Playback row: only include buttons that are clickable
   const playback = [];
   if (canPrev) {
     playback.push(
@@ -137,7 +133,6 @@ function buildButtons(s) {
     rows.push(new ActionRowBuilder().addComponents(playback));
   }
 
-  // Settings row (volume, repeat, autonext) — always useful when panel is shown
   const settings = [
     new ButtonBuilder()
       .setCustomId('btn_vol_down')
@@ -195,7 +190,6 @@ function buildButtons(s) {
   return rows;
 }
 
-// ── Full panel ───────────────────────────────────────────────────────────────
 function buildPanel(s) {
   return {
     embeds: [buildMainEmbed(s)],
@@ -203,7 +197,6 @@ function buildPanel(s) {
   };
 }
 
-// ── Reciter select menu (first 25 + search) ──────────────────────────────────
 const RECITERS_PER_PAGE = 25;
 
 function buildReciterMenu(reciters) {
@@ -248,7 +241,7 @@ function buildReciterMenu(reciters) {
       new ActionRowBuilder().addComponents(menu),
       row2
     ],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   };
 }
 
@@ -301,11 +294,10 @@ function buildReciterSearchResultsMenu(reciters, query) {
       new ActionRowBuilder().addComponents(menu),
       row2
     ],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   };
 }
 
-// ── Moshaf select (when reciter has >1 moshaf) ───────────────────────────────
 function buildMoshafMenu(reciter) {
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
@@ -335,11 +327,10 @@ function buildMoshafMenu(reciter) {
   return {
     embeds: [embed],
     components: [new ActionRowBuilder().addComponents(menu), cancelRow],
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   };
 }
 
-// ── Surah select (Discord max 5 rows; 5 menus = 114 surahs, no button row) ─────
 const SURAHS_PER_MENU = 25;
 
 function buildSurahMenu(moshaf) {
@@ -384,16 +375,23 @@ function buildSurahMenu(moshaf) {
   return {
     embeds: [embed],
     components: rows,
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   };
 }
 
-// ── Error embed ──────────────────────────────────────────────────────────────
 function errEmbed(msg) {
   return new EmbedBuilder()
     .setColor(EMBED_COLOR)
-    .setTitle('Error')
+    .setTitle("Error")
     .setDescription(msg)
+    .setTimestamp();
+}
+
+function successEmbed(title, description) {
+  return new EmbedBuilder()
+    .setColor(0x2d7d46)
+    .setTitle(title)
+    .setDescription(description || null)
     .setTimestamp();
 }
 
@@ -404,5 +402,6 @@ module.exports = {
   buildReciterSearchResultsMenu,
   buildMoshafMenu,
   buildSurahMenu,
-  errEmbed
+  errEmbed,
+  successEmbed,
 };

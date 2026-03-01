@@ -1,25 +1,31 @@
-'use strict';
+"use strict";
 
-const { ActivityType } = require('discord.js');
+const { ActivityType } = require("discord.js");
+const log = require("../utils/logger");
+const config = require("../utils/config");
 
-const activities = [
-  { name: 'The Holy Quran', type: ActivityType.Listening },
-  { name: 'Use /set to start', type: ActivityType.Playing },
-  { name: '114 surahs', type: ActivityType.Listening },
-];
+const TYPE_MAP = {
+  Playing: ActivityType.Playing,
+  Listening: ActivityType.Listening,
+  Watching: ActivityType.Watching,
+  Competing: ActivityType.Competing,
+};
+
+function applyPresence(client) {
+  const { type, name } = config.getActivity();
+  const activityType = TYPE_MAP[type] || ActivityType.Playing;
+  client.user.setPresence({
+    activities: [{ name: name || "Use /start to begin", type: activityType }],
+    status: "online",
+  });
+}
 
 module.exports = {
-  name: 'ready',
+  name: "clientReady",
   once: true,
   execute(client) {
-    console.log(`Logged in: ${client.user.tag}`);
-    console.log(`Connected to ${client.guilds.cache.size} server(s)`);
-    let i = 0;
-    const tick = () => {
-      client.user.setPresence({ activities: [activities[i % activities.length]], status: 'online' });
-      i++;
-    };
-    tick();
-    setInterval(tick, 30000);
-  }
+    log.success("READY", `Logged in as ${client.user.tag}`);
+    log.info("READY", `Connected to ${client.guilds.cache.size} server(s)`);
+    applyPresence(client);
+  },
 };

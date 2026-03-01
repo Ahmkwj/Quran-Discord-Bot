@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 const {
   joinVoiceChannel,
@@ -7,29 +7,29 @@ const {
   AudioPlayerStatus,
   VoiceConnectionStatus,
   entersState,
-  getVoiceConnection
-} = require('@discordjs/voice');
-
-const { buildUrl, parseSurahList } = require('./api');
+  getVoiceConnection,
+} = require("@discordjs/voice");
+const { buildUrl, parseSurahList } = require("./api");
+const log = require("./logger");
 
 const guilds = new Map();
 
 function defaultState() {
   return {
-    connection:      null,
-    player:          null,
-    resource:        null,
-    reciter:         null,   // full reciter object
-    moshaf:          null,   // selected moshaf
-    queue:           [],     // array of surah numbers
-    queueIndex:      0,
-    playing:         false,
-    paused:          false,
-    volume:          parseInt(process.env.DEFAULT_VOLUME) || 80,
-    repeat:          'none', // 'none' | 'one' | 'all'
-    autoNext:        true,
-    controlMsg:      null,   // the one persistent Message
-    voiceChannelId:  null
+    connection: null,
+    player: null,
+    resource: null,
+    reciter: null,
+    moshaf: null,
+    queue: [],
+    queueIndex: 0,
+    playing: false,
+    paused: false,
+    volume: parseInt(process.env.DEFAULT_VOLUME) || 80,
+    repeat: "none",
+    autoNext: true,
+    controlMsg: null,
+    voiceChannelId: null,
   };
 }
 
@@ -89,7 +89,6 @@ async function play(guildId, surahNumber) {
 
   const url = buildUrl(s.moshaf.server, surahNumber);
 
-  // Stop old player cleanly
   if (s.player) {
     s.player.removeAllListeners();
     s.player.stop(true);
@@ -108,13 +107,13 @@ async function play(guildId, surahNumber) {
   player.play(resource);
 
   player.on(AudioPlayerStatus.Idle, () => {
-    if (s.player !== player) return; // stale listener guard
+    if (s.player !== player) return;
     handleTrackEnd(guildId, surahNumber);
   });
 
-  player.on('error', err => {
+  player.on("error", (err) => {
     if (s.player !== player) return;
-    console.error(`[Player] guild=${guildId}`, err.message);
+    log.error("PLAYER", err, { stack: false });
     s.playing = false;
     refreshPanel(guildId);
   });
@@ -126,20 +125,20 @@ function handleTrackEnd(guildId, finishedSurah) {
   const s = get(guildId);
   if (!s) return;
 
-  if (s.repeat === 'one') {
-    play(guildId, finishedSurah).catch(console.error);
+  if (s.repeat === "one") {
+    play(guildId, finishedSurah).catch((err) => log.error("PLAYER", err, { stack: false }));
     return;
   }
 
   if (s.queueIndex < s.queue.length - 1) {
     s.queueIndex++;
-    play(guildId, s.queue[s.queueIndex]).catch(console.error);
+    play(guildId, s.queue[s.queueIndex]).catch((err) => log.error("PLAYER", err, { stack: false }));
     return;
   }
 
-  if (s.repeat === 'all' && s.queue.length > 0) {
+  if (s.repeat === "all" && s.queue.length > 0) {
     s.queueIndex = 0;
-    play(guildId, s.queue[0]).catch(console.error);
+    play(guildId, s.queue[0]).catch((err) => log.error("PLAYER", err, { stack: false }));
     return;
   }
 
@@ -150,7 +149,7 @@ function handleTrackEnd(guildId, finishedSurah) {
       const next = all[pos + 1];
       s.queue = [next];
       s.queueIndex = 0;
-      play(guildId, next).catch(console.error);
+      play(guildId, next).catch((err) => log.error("PLAYER", err, { stack: false }));
       return;
     }
   }
@@ -229,7 +228,7 @@ async function refreshPanel(guildId) {
     const { embeds, components } = buildPanel(s);
     await s.controlMsg.edit({ embeds, components });
   } catch (e) {
-    if (e.code !== 10008) console.error('[Panel refresh]', e.message);
+    if (e.code !== 10008) log.error("PANEL", e, { stack: false });
   }
 }
 
