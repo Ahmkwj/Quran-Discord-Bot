@@ -3,6 +3,7 @@
 const { ActivityType } = require("discord.js");
 const log = require("../utils/logger");
 const config = require("../utils/config");
+const player = require("../utils/player");
 
 const TYPE_MAP = {
   Playing: ActivityType.Playing,
@@ -15,7 +16,7 @@ function applyPresence(client) {
   const { type, name } = config.getActivity();
   const activityType = TYPE_MAP[type] || ActivityType.Playing;
   client.user.setPresence({
-    activities: [{ name: name || "Use /start to begin", type: activityType }],
+    activities: [{ name: name || "Use play to begin", type: activityType }],
     status: "online",
   });
 }
@@ -23,9 +24,20 @@ function applyPresence(client) {
 module.exports = {
   name: "clientReady",
   once: true,
-  execute(client) {
+  async execute(client) {
+    player.setClient(client);
     log.success("READY", `Logged in as ${client.user.tag}`);
     log.info("READY", `Connected to ${client.guilds.cache.size} server(s)`);
     applyPresence(client);
+    const c = config.load();
+    const boundChannels = c.boundChannels || {};
+    for (const guildId of Object.keys(boundChannels)) {
+      const b = boundChannels[guildId];
+      if (!b || !b.voiceChannelId) continue;
+      try {
+        const ch = await client.channels.fetch(b.voiceChannelId).catch(() => null);
+        if (ch && ch.isVoiceBased()) await player.connect(ch);
+      } catch (_) {}
+    }
   },
 };

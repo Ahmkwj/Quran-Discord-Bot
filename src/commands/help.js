@@ -1,36 +1,25 @@
 "use strict";
 
-const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require("discord.js");
-
-const EMBED_COLOR = 0x3d3d3d;
+const { EmbedBuilder } = require("discord.js");
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName("help")
-    .setDescription("List all commands and their descriptions"),
+  name: "help",
+  description: "List all commands",
 
-  async execute(interaction) {
-    const commands = interaction.client.commands;
+  async execute(ctx) {
     const lines = [];
-    for (const [, cmd] of commands) {
-      if (cmd.data && cmd.data.description) {
-        const name = cmd.data.name;
-        const desc = cmd.data.description;
-        lines.push(`**/${name}** — ${desc}`);
+    for (const [, cmd] of ctx.client.commands) {
+      if (cmd.name && cmd.description) {
+        lines.push(`**${cmd.name}** — ${cmd.description}`);
       }
     }
     const embed = new EmbedBuilder()
-      .setColor(EMBED_COLOR)
-      .setAuthor({
-        name: "Quran Bot",
-        iconURL: "https://i.imgur.com/8sEvHGj.png",
-      })
-      .setTitle("Commands")
-      .setDescription(lines.join("\n"))
+      .setColor(0x2b5f4a)
+      .setAuthor({ name: "Quran Bot — Commands" })
+      .setTitle("All commands")
+      .setDescription("Mention the bot then the command. Example: @Bot play\n\n" + lines.join("\n"))
+      .setFooter({ text: "Use @Bot <command> in any channel" })
       .setTimestamp();
-    await interaction.reply({
-      embeds: [embed],
-      flags: MessageFlags.Ephemeral,
-    });
+    await ctx.reply({ embeds: [embed] });
   },
 };

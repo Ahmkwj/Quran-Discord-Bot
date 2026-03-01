@@ -11,8 +11,56 @@ const {
 } = require("@discordjs/voice");
 const { buildUrl, parseSurahList } = require("./api");
 const log = require("./logger");
+const config = require("./config");
 
 const guilds = new Map();
+const reconnecting = new Set();
+let discordClient = null;
+
+function setClient(client) {
+  discordClient = client;
+}
+
+async function ensureInBoundChannel(guildId) {
+  const bound = config.getBoundChannel(guildId);
+  if (!bound || !discordClient) return;
+  if (reconnecting.has(guildId)) return;
+  const s = get(guildId);
+  const existing = getVoiceConnection(guildId);
+  if (existing && existing.joinConfig && existing.joinConfig.channelId === bound.voiceChannelId) return;
+  const currentSurah = s.queue && s.queue.length ? s.queue[s.queueIndex] : null;
+  const wasPaused = s.paused;
+  const hadPlayback = currentSurah && s.moshaf && (s.playing || s.paused);
+  reconnecting.add(guildId);
+  try {
+    if (existing) try { existing.destroy(); } catch (_) {}
+    clearConnectionState(s);
+    await new Promise((r) => setTimeout(r, 600));
+    const ch = await discordClient.channels.fetch(bound.voiceChannelId);
+    if (!ch || !ch.isVoiceBased()) return;
+    await connect(ch);
+    if (hadPlayback && s.moshaf) {
+      await play(guildId, currentSurah).catch((e) => log.error("PLAYER", e, { stack: false }));
+      if (wasPaused) pause(guildId);
+    }
+    refreshPanel(guildId);
+  } catch (e) {
+    log.error("PLAYER", e, { stack: false });
+  } finally {
+    reconnecting.delete(guildId);
+  }
+}
+
+function clearConnectionState(s) {
+  if (!s) return;
+  try { s.player && s.player.removeAllListeners(); s.player && s.player.stop(true); } catch (_) {}
+  s.connection = null;
+  s.voiceChannelId = null;
+  s.player = null;
+  s.resource = null;
+  s.playing = false;
+  s.paused = false;
+}
 
 function defaultState() {
   return {
@@ -29,6 +77,8 @@ function defaultState() {
     repeat: "none",
     autoNext: true,
     controlMsg: null,
+    controlChannelId: null,
+    controlMsgId: null,
     voiceChannelId: null,
   };
 }
@@ -42,8 +92,25 @@ function destroy(guildId) {
   const s = guilds.get(guildId);
   if (!s) return;
   try { s.player && s.player.stop(true); } catch (_) {}
+  s.playing = false;
+  s.paused = false;
+  s.queue = [];
+  s.queueIndex = 0;
+  const bound = config.getBoundChannel(guildId);
+  if (!bound) {
+    try { s.connection && s.connection.destroy(); } catch (_) {}
+    guilds.delete(guildId);
+  }
+  refreshPanel(guildId);
+}
+
+function forceLeave(guildId) {
+  const s = guilds.get(guildId);
+  if (!s) return;
+  try { s.player && s.player.stop(true); } catch (_) {}
   try { s.connection && s.connection.destroy(); } catch (_) {}
   guilds.delete(guildId);
+  refreshPanel(guildId);
 }
 
 async function connect(voiceChannel) {
@@ -77,6 +144,38 @@ async function connect(voiceChannel) {
         entersState(conn, VoiceConnectionStatus.Connecting, 5000)
       ]);
     } catch {
+      const bound = config.getBoundChannel(guildId);
+      if (bound && discordClient && !reconnecting.has(guildId)) {
+        reconnecting.add(guildId);
+        const s = guilds.get(guildId);
+        const currentSurah = s && s.queue && s.queue.length ? s.queue[s.queueIndex] : null;
+        const wasPaused = s && s.paused;
+        const hadPlayback = currentSurah && s && s.moshaf && (s.playing || s.paused);
+        try {
+          const existing = getVoiceConnection(guildId);
+          if (existing) try { existing.destroy(); } catch (_) {}
+          if (s) clearConnectionState(s);
+          await new Promise((r) => setTimeout(r, 800));
+          const voiceChannel = await discordClient.channels.fetch(bound.voiceChannelId);
+          if (voiceChannel && voiceChannel.isVoiceBased()) {
+            await connect(voiceChannel);
+            const state = get(guildId);
+            if (hadPlayback && state.moshaf) {
+              await play(guildId, currentSurah).catch((e) => log.error("PLAYER", e, { stack: false }));
+              if (wasPaused) pause(guildId);
+            }
+            refreshPanel(guildId);
+          } else {
+            refreshPanel(guildId);
+          }
+        } catch (e) {
+          log.error("PLAYER", e, { stack: false });
+          refreshPanel(guildId);
+        } finally {
+          reconnecting.delete(guildId);
+        }
+        return;
+      }
       destroy(guildId);
       refreshPanel(guildId);
     }
@@ -222,20 +321,42 @@ async function skipPrev(guildId) {
 
 async function refreshPanel(guildId) {
   const s = guilds.get(guildId);
-  if (!s || !s.controlMsg) return;
+  if (!s) return;
+  const channelId = s.controlChannelId;
+  const msgId = s.controlMsgId;
+  if (!channelId || !msgId || !discordClient) return;
   const { buildPanel } = require('./panel');
   try {
+    const ch = await discordClient.channels.fetch(channelId);
+    if (!ch?.isTextBased?.()) return;
+    const msg = await ch.messages.fetch(msgId);
     const { embeds, components } = buildPanel(s);
-    await s.controlMsg.edit({ embeds, components });
+    await msg.edit({ embeds, components });
   } catch (e) {
-    if (e.code !== 10008) log.error("PANEL", e, { stack: false });
+    if (e.code === 10003 || e.code === 10008) {
+      s.controlMsg = null;
+      s.controlChannelId = null;
+      s.controlMsgId = null;
+    } else {
+      log.error("PANEL", e, { stack: false });
+    }
   }
 }
 
 module.exports = {
-  get, destroy, connect, play,
-  pause, resume, stop,
-  setVolume, cycleRepeat,
-  skipNext, skipPrev,
-  refreshPanel
+  get,
+  destroy,
+  forceLeave,
+  connect,
+  setClient,
+  ensureInBoundChannel,
+  play,
+  pause,
+  resume,
+  stop,
+  setVolume,
+  cycleRepeat,
+  skipNext,
+  skipPrev,
+  refreshPanel,
 };

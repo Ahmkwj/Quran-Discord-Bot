@@ -7,7 +7,8 @@ const CONFIG_PATH = path.join(process.cwd(), "config.json");
 
 const DEFAULTS = {
   mods: [],
-  activity: { type: "Playing", name: "Use /start to begin" },
+  activity: { type: "Playing", name: "Use play to begin" },
+  boundChannels: {},
 };
 
 let cache = null;
@@ -25,7 +26,29 @@ function load() {
   }
   if (!Array.isArray(cache.mods)) cache.mods = [];
   if (!cache.activity || typeof cache.activity.name !== "string") cache.activity = { ...DEFAULTS.activity };
+  if (typeof cache.boundChannels !== "object" || cache.boundChannels === null) cache.boundChannels = {};
   return cache;
+}
+
+function getBoundChannel(guildId) {
+  const c = load();
+  const b = c.boundChannels[String(guildId)];
+  return b && b.voiceChannelId && b.commandChannelId ? b : null;
+}
+
+function setBoundChannel(guildId, voiceChannelId, commandChannelId) {
+  const c = load();
+  c.boundChannels[String(guildId)] = { voiceChannelId: String(voiceChannelId), commandChannelId: String(commandChannelId) };
+  save();
+  return c.boundChannels[String(guildId)];
+}
+
+function clearBoundChannel(guildId) {
+  const c = load();
+  if (!c.boundChannels[String(guildId)]) return false;
+  delete c.boundChannels[String(guildId)];
+  save();
+  return true;
 }
 
 function save() {
@@ -62,7 +85,7 @@ function getActivity() {
 
 function setActivity(type, name) {
   const c = load();
-  c.activity = { type: type || "Playing", name: name || "Use /start to begin" };
+  c.activity = { type: type || "Playing", name: name || "Use play to begin" };
   save();
   return c.activity;
 }
@@ -75,6 +98,9 @@ module.exports = {
   removeMod,
   getActivity,
   setActivity,
+  getBoundChannel,
+  setBoundChannel,
+  clearBoundChannel,
   CONFIG_PATH,
   DEFAULTS,
 };

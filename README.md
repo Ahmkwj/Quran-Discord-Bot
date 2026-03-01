@@ -41,28 +41,21 @@ cp .env.example .env
 
 Edit `.env`:
 
-| Variable       | Required | Description |
-|----------------|----------|-------------|
-| `DISCORD_TOKEN`| Yes      | Bot token from the Discord Developer Portal |
-| `CLIENT_ID`    | Yes      | Application ID (same portal, General Information) |
-| `OWNER_ID`     | Yes      | Your Discord user ID (only this user and added mods can use the bot) |
-| `GUILD_ID`     | No       | If set, slash commands are deployed to this server only (faster for testing) |
-| `DEFAULT_VOLUME` | No     | Default volume 0–100 (default: 80) |
+| Variable         | Required | Description                                                          |
+| ---------------- | -------- | -------------------------------------------------------------------- |
+| `DISCORD_TOKEN`  | Yes      | Bot token from the Discord Developer Portal                          |
+| `OWNER_ID`       | Yes      | Your Discord user ID (only this user and added mods can use the bot) |
+| `DEFAULT_VOLUME` | No       | Default volume 0–100 (default: 80)                                   |
 
 To get your user ID: enable Developer Mode in Discord (Settings > App Settings > Advanced), then right‑click your username and click "Copy User ID".
 
-### 3. Deploy slash commands
+### 3. Start the bot
 
 Register the bot’s slash commands with Discord:
 
 ```bash
 npm run deploy
 ```
-
-- With `GUILD_ID` set: commands appear in that server right away.
-- With `GUILD_ID` unset: commands are global and can take up to an hour to show everywhere.
-
-### 4. Start the bot
 
 ```bash
 npm start
@@ -78,25 +71,29 @@ npm run dev
 
 ## Commands
 
-| Command       | Who can use   | Description |
-|---------------|---------------|-------------|
-| `/start`      | Owner, Mods   | Send the Quran control panel in this channel (use in a voice channel’s text channel). |
-| `/setavatar`  | Owner, Mods   | Change the bot’s avatar (attachment: image file). |
-| `/setname`    | Owner, Mods   | Change the bot’s username. |
-| `/setstatus`  | Owner, Mods   | Set the bot’s presence (Playing / Listening / Watching / Competing + custom text). |
-| `/restart`    | Owner, Mods   | Restart the bot (process exits; use with PM2 or similar to auto-restart). |
-| `/addmod`     | Owner only    | Add a user as a moderator (they can use the panel and settings, but not add/remove mods). |
-| `/removemod`  | Owner only    | Remove a user from the moderator list. |
-| `/listmods`   | Owner only    | List the owner and all moderators. |
+| Command       | Who can use | Description                                                                       |
+| ------------- | ----------- | --------------------------------------------------------------------------------- |
+| **play**      | Owner, Mods | Set the bot to this channel, join your voice channel, and send the control panel. |
+| **help**      | Anyone      | List all commands.                                                                |
+| **settings**  | Owner, Mods | Show current bot settings (owner, mods, bound channel, activity).                 |
+| **setavatar** | Owner, Mods | Change the bot’s avatar (attach an image to the message).                         |
+| **setname**   | Owner, Mods | Change the bot username. Example: @Bot setname NewName                            |
+| **setstatus** | Owner, Mods | Set the bot presence. Example: @Bot setstatus Playing Use play to begin           |
+| **restart**   | Owner, Mods | Restart the bot (use with PM2 or similar to auto-restart).                        |
+| **addmod**    | Owner only  | Add a user as moderator. Example: @Bot addmod @user                               |
+| **removemod** | Owner only  | Remove a user from moderators. Example: @Bot removemod @user                      |
+| **listmods**  | Owner only  | List the owner and all moderators.                                                |
 
-Only the owner and moderators can use `/start` and the panel buttons. Everyone else will see an error if they try.
+Use the bot mention as prefix (e.g. @BotName play). Only the owner and moderators can use **play** and the panel buttons. Everyone else will see an error if they try.
 
----
+### How play works
+
+## When you send **@Bot play** in a text channel (while in a voice channel), the bot joins your voice channel, sends the control panel there, and saves it as the bound channel. Only that text channel can use the panel. The bot stays in the voice channel and reconnects if disconnected. To use the bot elsewhere, send **@Bot play** from the other channel (while in the voice channel you want).
 
 ## Permissions
 
 - **Owner** – Set in `.env` as `OWNER_ID`. Can do everything: use the panel, change avatar/name/status, restart the bot, and add or remove moderators.
-- **Moderators** – Added with `/addmod` by the owner. Can use the panel, change avatar/name/status, and restart the bot. Cannot add or remove mods.
+- **Moderators** – Added with **addmod** by the owner. Can use the panel, change avatar/name/status, and restart the bot. Cannot add or remove mods.
 
 Moderator IDs are stored in `config.json` (created on first run). The owner is not stored in config; only `OWNER_ID` in `.env` defines the owner.
 
@@ -107,15 +104,16 @@ Moderator IDs are stored in `config.json` (created on first run). The owner is n
 At first run, the bot creates `config.json` in the project root. It stores:
 
 - **mods** – Array of Discord user IDs that are moderators.
-- **activity** – Current presence (e.g. "Playing" with "Use /start to begin"). Used on startup and when you run `/setstatus`.
+- **activity** – Current presence (e.g. "Playing" with "Use play to begin"). Used on startup and when you run **setstatus**.
+- **boundChannels** – Per-guild bound channel (voice + text channel IDs). Set when you run **play** in a channel.
 
-You can edit `config.json` by hand, but using `/addmod` and `/removemod` is safer. Do not commit `config.json` if it contains your mod list; it is in `.gitignore` by default.
+You can edit `config.json` by hand, but using **addmod** and **removemod** is safer. Do not commit `config.json` if it contains your mod list; it is in `.gitignore` by default.
 
 ---
 
 ## Restarting the bot
 
-`/restart` makes the bot process exit. To have it come back automatically, run it under a process manager:
+The **restart** command makes the bot process exit. To have it come back automatically, run it under a process manager:
 
 **PM2 (recommended):**
 
@@ -143,14 +141,14 @@ Use the generated URL to invite the bot to your server. Ensure the bot has Conne
 
 The bot needs these permissions to work. Each has a permission bit; the combined integer is below.
 
-| Permission | Purpose | Permission code |
-|------------|---------|-----------------|
-| View Channels | See channels and respond in them | 1024 |
-| Send Messages | Send the control panel and command replies | 2048 |
-| Embed Links | Send embeds (panel, help, errors) | 16384 |
-| Use Application Commands | Let users use slash commands | 2147483648 |
-| Connect | Join voice channels | 1048576 |
-| Speak | Play audio in voice | 2097152 |
+| Permission               | Purpose                                    | Permission code |
+| ------------------------ | ------------------------------------------ | --------------- |
+| View Channels            | See channels and respond in them           | 1024            |
+| Send Messages            | Send the control panel and command replies | 2048            |
+| Embed Links              | Send embeds (panel, help, errors)          | 16384           |
+| Use Application Commands | Let users use slash commands               | 2147483648      |
+| Connect                  | Join voice channels                        | 1048576         |
+| Speak                    | Play audio in voice                        | 2097152         |
 
 **Combined permission integer (use in OAuth2 URL):** `2150648832`
 
@@ -165,7 +163,7 @@ Quran-Discord-Bot/
   src/
     index.js           # Entry point, loads commands and events
     deploy.js          # Registers slash commands with Discord
-    commands/          # Slash commands (start, setavatar, setname, setstatus, restart, addmod, removemod, listmods)
+    commands/          # Slash commands (play, setavatar, setname, setstatus, restart, addmod, removemod, listmods, settings)
     events/
       ready.js         # Sets presence from config on startup
     handlers/
@@ -203,7 +201,7 @@ Set `OWNER_ID` in `.env` to your Discord user ID. Only that user and users added
 Run `npm run deploy`. If you use `GUILD_ID`, commands show up in that server immediately. Without `GUILD_ID`, global commands can take up to an hour.
 
 **Bot does not join voice / no sound**  
-Check the bot has Connect and Speak in the voice channel. You must run `/start` from the **text channel attached to that voice channel** (the one you see when you click the voice channel). You must be in the same voice channel.
+Check the bot has Connect and Speak in the voice channel. Run `/play` from a server text channel while you are in a voice channel. The panel appears in that text channel.
 
 **Restart does nothing after exit**  
 `/restart` only exits the process. Use a process manager (e.g. PM2) so the bot is started again automatically.

@@ -1,6 +1,5 @@
 "use strict";
 
-const { MessageFlags } = require("discord.js");
 const config = require("./config");
 
 function getOwnerId() {
@@ -21,35 +20,23 @@ function isOwnerOrMod(userId) {
   return isOwner(userId) || isMod(userId);
 }
 
-async function requireOwner(interaction, errEmbed) {
-  if (isOwner(interaction.user.id)) return true;
+async function requireOwner(ctx, errReply) {
+  if (isOwner(ctx.user.id)) return true;
   const owner = getOwnerId();
-  await interaction.reply({
-    embeds: [
-      errEmbed(
-        owner
-          ? "Only the bot owner can use this command."
-          : "Owner is not configured. Set OWNER_ID in your .env file."
-      ),
-    ],
-    flags: MessageFlags.Ephemeral,
-  }).catch(() => {});
+  const msg = owner
+    ? "Only the bot owner can use this command."
+    : "Owner is not set. Add OWNER_ID to your .env file.";
+  await ctx.reply(errReply(msg)).catch(() => {});
   return false;
 }
 
-async function requireOwnerOrMod(interaction, errEmbed) {
-  if (isOwnerOrMod(interaction.user.id)) return true;
+async function requireOwnerOrMod(ctx, errReply) {
+  if (isOwnerOrMod(ctx.user.id)) return true;
   const owner = getOwnerId();
-  await interaction.reply({
-    embeds: [
-      errEmbed(
-        owner
-          ? "Only the bot owner and moderators can use this command."
-          : "Owner is not configured. Set OWNER_ID in your .env file."
-      ),
-    ],
-    flags: MessageFlags.Ephemeral,
-  }).catch(() => {});
+  const msg = owner
+    ? "Only the bot owner and moderators can use this command."
+    : "Owner is not set. Add OWNER_ID to your .env file.";
+  await ctx.reply(errReply(msg)).catch(() => {});
   return false;
 }
 
@@ -61,3 +48,4 @@ module.exports = {
   requireOwner,
   requireOwnerOrMod,
 };
+

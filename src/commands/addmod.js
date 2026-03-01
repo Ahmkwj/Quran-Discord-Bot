@@ -1,40 +1,26 @@
 "use strict";
 
-const { SlashCommandBuilder, MessageFlags } = require("discord.js");
-const { errEmbed, successEmbed } = require("../utils/panel");
+const { errReply, successReply } = require("../utils/panel");
 const { requireOwner, isOwner } = require("../utils/permissions");
 const config = require("../utils/config");
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName("addmod")
-    .setDescription("(Owner) Add a user as a bot moderator")
-    .addUserOption((o) =>
-      o
-        .setName("user")
-        .setDescription("User to add as mod")
-        .setRequired(true)
-    ),
+  name: "addmod",
+  description: "(Owner) Add a user as a bot moderator. Usage: @Bot addmod @user",
 
-  async execute(interaction) {
-    if (!(await requireOwner(interaction, errEmbed))) return;
-    const user = interaction.options.getUser("user");
+  async execute(ctx) {
+    if (!(await requireOwner(ctx, errReply))) return;
+    const user = ctx.options.getUser();
+    if (!user) {
+      return ctx.reply(errReply("Mention a user to add as mod. Example: @Bot addmod @username"));
+    }
     if (isOwner(user.id)) {
-      return interaction.reply({
-        embeds: [errEmbed("The owner is already the owner. Use /removemod for others.")],
-        flags: MessageFlags.Ephemeral,
-      });
+      return ctx.reply(errReply("That user is the owner. Use removemod for other users."));
     }
     const added = config.addMod(user.id);
     if (!added) {
-      return interaction.reply({
-        embeds: [errEmbed(`${user.tag} is already a mod.`)],
-        flags: MessageFlags.Ephemeral,
-      });
+      return ctx.reply(errReply(`${user.tag} is already a moderator.`));
     }
-    await interaction.reply({
-      embeds: [successEmbed("Mod added", `${user.tag} (\`${user.id}\`) has been added as a moderator.`)],
-      flags: MessageFlags.Ephemeral,
-    });
+    await ctx.reply(successReply(`${user.tag} (${user.id}) has been added as a moderator.`));
   },
 };
