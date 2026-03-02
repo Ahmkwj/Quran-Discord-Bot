@@ -48,6 +48,7 @@ function get(guildId) {
 
 async function connect(voiceChannel) {
   const guildId = voiceChannel.guild.id;
+  log.info("VOICE", `connect guild=${guildId} channel=${voiceChannel.id}`);
   const s = get(guildId);
 
   const existing = getVoiceConnection(guildId);
@@ -131,6 +132,7 @@ async function startPlayback(guildId, surahNumber) {
   }
 
   const url = buildUrl(s.moshaf.server, surahNumber);
+  log.info("PLAYBACK", `start surah ${surahNumber} url=${url}`);
 
   if (s.player) {
     s.player.removeAllListeners();
@@ -150,6 +152,7 @@ async function startPlayback(guildId, surahNumber) {
   player.play(resource);
 
   player.once(AudioPlayerStatus.Idle, () => {
+    log.info("PLAYBACK", `idle (track end) surah ${surahNumber}`);
     handleTrackEnd(guildId, surahNumber);
   });
 
@@ -223,6 +226,7 @@ async function updatePanel(guildId) {
 function handleTrackEnd(guildId, finishedSurah) {
   const s = get(guildId);
   if (!s) return;
+  log.info("PLAYBACK", `handleTrackEnd surah ${finishedSurah} queueIndex=${s.queueIndex} queueLen=${s.queue.length}`);
 
   const playNext = (surahNum) => {
     startPlayback(guildId, surahNum)
