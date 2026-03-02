@@ -8,8 +8,9 @@ const {
   VoiceConnectionStatus,
   entersState,
   getVoiceConnection,
+  StreamType,
 } = require("@discordjs/voice");
-const { buildUrl, parseSurahList } = require("./api");
+const { buildUrl, parseSurahList, fetchAudioStream } = require("./api");
 const { buildPanel } = require("./panel");
 const log = require("./logger");
 const config = require("./config");
@@ -142,8 +143,19 @@ async function startPlayback(guildId, surahNumber) {
     s.player.stop(true);
   }
 
+  let stream;
+  try {
+    stream = await fetchAudioStream(url);
+  } catch (err) {
+    log.error("PLAYBACK", err, { stack: false });
+    throw err;
+  }
+
   const player = createAudioPlayer();
-  const resource = createAudioResource(url, { inlineVolume: true });
+  const resource = createAudioResource(stream, {
+    inlineVolume: true,
+    inputType: StreamType.Arbitrary,
+  });
   if (resource.volume) resource.volume.setVolume(s.volume / 100);
 
   s.player = player;
@@ -238,7 +250,7 @@ function handleTrackEnd(guildId, finishedSurah) {
     log.error(
       "PLAYER",
       new Error(
-        `Track ended after ${playedMs}ms (min ${MIN_PLAYBACK_MS}ms). Stream failed - install ffmpeg on the server: apt install ffmpeg`,
+        `Track ended after ${playedMs}ms (min ${MIN_PLAYBACK_MS}ms). Stream may have failed (check bot.log for fetch/ffmpeg errors).`,
       ),
       { stack: false },
     );
