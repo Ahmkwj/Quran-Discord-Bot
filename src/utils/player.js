@@ -14,6 +14,8 @@ const { buildPanel } = require("./panel");
 const log = require("./logger");
 const config = require("./config");
 
+const MIN_PLAYBACK_MS = 2000;
+
 const guilds = new Map();
 let discordClient = null;
 
@@ -32,6 +34,7 @@ function defaultState() {
     queueIndex: 0,
     playing: false,
     paused: false,
+    playingSince: 0,
     volume: parseInt(process.env.DEFAULT_VOLUME) || 80,
     repeat: "none",
     autoNext: true,
@@ -147,6 +150,7 @@ async function startPlayback(guildId, surahNumber) {
   s.resource = resource;
   s.playing = true;
   s.paused = false;
+  s.playingSince = Date.now();
 
   s.connection.subscribe(player);
   player.play(resource);
@@ -226,7 +230,22 @@ async function updatePanel(guildId) {
 function handleTrackEnd(guildId, finishedSurah) {
   const s = get(guildId);
   if (!s) return;
-  log.info("PLAYBACK", `handleTrackEnd surah ${finishedSurah} queueIndex=${s.queueIndex} queueLen=${s.queue.length}`);
+
+  const playedMs = Date.now() - (s.playingSince || 0);
+  log.info("PLAYBACK", `handleTrackEnd surah ${finishedSurah} playedMs=${playedMs} queueIndex=${s.queueIndex} queueLen=${s.queue.length}`);
+
+  if (playedMs < MIN_PLAYBACK_MS) {
+    log.error(
+      "PLAYER",
+      new Error(
+        `Track ended after ${playedMs}ms (min ${MIN_PLAYBACK_MS}ms). Stream failed - install ffmpeg on the server: apt install ffmpeg`,
+      ),
+      { stack: false },
+    );
+    s.playing = false;
+    updatePanel(guildId).catch(() => {});
+    return;
+  }
 
   const playNext = (surahNum) => {
     startPlayback(guildId, surahNum)
