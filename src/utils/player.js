@@ -10,8 +10,10 @@ const {
   getVoiceConnection,
   StreamType,
 } = require("@discordjs/voice");
+const { ActivityType } = require("discord.js");
 const { buildUrl, parseSurahList, fetchAudioStream } = require("./api");
 const { buildPanel } = require("./panel");
+const { getSurah } = require("./surahs");
 const log = require("./logger");
 const config = require("./config");
 
@@ -20,6 +22,30 @@ let discordClient = null;
 
 function setClient(client) {
   discordClient = client;
+}
+
+function updatePresence() {
+  if (!discordClient?.user) return;
+  const defaultActivity = config.getActivity();
+  const defaultType = { Playing: ActivityType.Playing, Listening: ActivityType.Listening, Watching: ActivityType.Watching, Competing: ActivityType.Competing }[defaultActivity.type] || ActivityType.Playing;
+
+  for (const [, s] of guilds) {
+    if ((s.playing || s.paused) && s.queue.length > 0) {
+      const surah = getSurah(s.queue[s.queueIndex]);
+      const label = surah ? `Surah ${surah.en}` : "Quran";
+      const name = s.paused ? `Paused · ${label}` : label;
+      discordClient.user.setPresence({
+        activities: [{ name, type: ActivityType.Listening }],
+        status: "online",
+      });
+      return;
+    }
+  }
+
+  discordClient.user.setPresence({
+    activities: [{ name: defaultActivity.name || "Use play to begin", type: defaultType }],
+    status: "online",
+  });
 }
 
 function defaultState() {
@@ -170,6 +196,8 @@ async function startPlayback(guildId, surahNumber) {
     s.playing = false;
     updatePanel(guildId).catch(() => {});
   });
+
+  updatePresence();
 }
 
 async function startNewPlayback(guildId, surahNumber) {
@@ -277,6 +305,7 @@ function handleTrackEnd(guildId, finishedSurah) {
 
   s.playing = false;
   updatePanel(guildId).catch(() => {});
+  updatePresence();
 }
 
 function pause(guildId) {
@@ -284,6 +313,7 @@ function pause(guildId) {
   if (!s.player || !s.playing || s.paused) return false;
   s.player.pause();
   s.paused = true;
+  updatePresence();
   return true;
 }
 
@@ -292,6 +322,7 @@ function resume(guildId) {
   if (!s.player || !s.paused) return false;
   s.player.unpause();
   s.paused = false;
+  updatePresence();
   return true;
 }
 
@@ -331,6 +362,7 @@ async function resetToWelcome(guildId) {
 
   s.controlMsgId = null;
   await sendNewPanel(guildId);
+  updatePresence();
 }
 
 async function disconnect(guildId) {
@@ -348,6 +380,7 @@ async function disconnect(guildId) {
   s.queue = [];
   s.queueIndex = 0;
   s.voiceChannelId = null;
+  updatePresence();
 }
 
 function setVolume(guildId, vol) {
