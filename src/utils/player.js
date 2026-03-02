@@ -15,8 +15,6 @@ const { buildPanel } = require("./panel");
 const log = require("./logger");
 const config = require("./config");
 
-const MIN_PLAYBACK_MS = 2000;
-
 const guilds = new Map();
 let discordClient = null;
 
@@ -35,7 +33,6 @@ function defaultState() {
     queueIndex: 0,
     playing: false,
     paused: false,
-    playingSince: 0,
     volume: parseInt(process.env.DEFAULT_VOLUME) || 80,
     repeat: "none",
     autoNext: true,
@@ -52,7 +49,6 @@ function get(guildId) {
 
 async function connect(voiceChannel) {
   const guildId = voiceChannel.guild.id;
-  log.info("VOICE", `connect guild=${guildId} channel=${voiceChannel.id}`);
   const s = get(guildId);
 
   const existing = getVoiceConnection(guildId);
@@ -136,7 +132,6 @@ async function startPlayback(guildId, surahNumber) {
   }
 
   const url = buildUrl(s.moshaf.server, surahNumber);
-  log.info("PLAYBACK", `start surah ${surahNumber} url=${url}`);
 
   if (s.player) {
     s.player.removeAllListeners();
@@ -162,13 +157,11 @@ async function startPlayback(guildId, surahNumber) {
   s.resource = resource;
   s.playing = true;
   s.paused = false;
-  s.playingSince = Date.now();
 
   s.connection.subscribe(player);
   player.play(resource);
 
   player.once(AudioPlayerStatus.Idle, () => {
-    log.info("PLAYBACK", `idle (track end) surah ${surahNumber}`);
     handleTrackEnd(guildId, surahNumber);
   });
 
@@ -242,22 +235,6 @@ async function updatePanel(guildId) {
 function handleTrackEnd(guildId, finishedSurah) {
   const s = get(guildId);
   if (!s) return;
-
-  const playedMs = Date.now() - (s.playingSince || 0);
-  log.info("PLAYBACK", `handleTrackEnd surah ${finishedSurah} playedMs=${playedMs} queueIndex=${s.queueIndex} queueLen=${s.queue.length}`);
-
-  if (playedMs < MIN_PLAYBACK_MS) {
-    log.error(
-      "PLAYER",
-      new Error(
-        `Track ended after ${playedMs}ms (min ${MIN_PLAYBACK_MS}ms). Stream may have failed (check bot.log for fetch/ffmpeg errors).`,
-      ),
-      { stack: false },
-    );
-    s.playing = false;
-    updatePanel(guildId).catch(() => {});
-    return;
-  }
 
   const playNext = (surahNum) => {
     startPlayback(guildId, surahNum)

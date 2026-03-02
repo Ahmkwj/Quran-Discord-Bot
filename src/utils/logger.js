@@ -1,11 +1,7 @@
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
-
 const PAD = 14;
 const LINE = "------------------------------------------------------------";
-const LOG_FILE = path.join(process.cwd(), "bot.log");
 
 function ts() {
   return new Date().toISOString();
@@ -15,28 +11,16 @@ function tag(name) {
   return `[${String(name).padEnd(PAD)}]`;
 }
 
-function toFile(line) {
-  try {
-    fs.appendFileSync(LOG_FILE, line + "\n");
-  } catch (_) {}
-}
-
 function info(context, message) {
-  const line = `${tag(context)} ${ts()}  ${message}`;
-  console.log(line);
-  toFile(line);
+  console.log(`${tag(context)} ${ts()}  ${message}`);
 }
 
 function success(context, message) {
-  const line = `${tag(context)} ${ts()}  ${message}`;
-  console.log(line);
-  toFile(line);
+  console.log(`${tag(context)} ${ts()}  ${message}`);
 }
 
 function warn(context, message) {
-  const line = `${tag(context)} ${ts()}  ${message}`;
-  console.warn(line);
-  toFile(line);
+  console.warn(`${tag(context)} ${ts()}  ${message}`);
 }
 
 function error(context, err, options = {}) {
@@ -44,20 +28,16 @@ function error(context, err, options = {}) {
   const msg = err && (err.message || String(err));
   const name = err && err.name ? err.name : "Error";
 
-  const lines = [
-    "",
-    LINE,
-    `${tag("ERROR")} ${ts()}`,
-    `${tag(context)} ${name}: ${msg}`,
-  ];
+  console.error("");
+  console.error(LINE);
+  console.error(`${tag("ERROR")} ${ts()}`);
+  console.error(`${tag(context)} ${name}: ${msg}`);
   if (showStack && err && err.stack) {
-    lines.push("", err.stack);
+    console.error("");
+    console.error(err.stack);
   }
-  lines.push(LINE, "");
-
-  const block = lines.join("\n");
-  console.error(block);
-  toFile(block);
+  console.error(LINE);
+  console.error("");
 }
 
 module.exports = { info, success, warn, error };
