@@ -42,9 +42,6 @@ for (const file of fs.readdirSync(cmdDir).filter((f) => f.endsWith(".js"))) {
   }
 }
 
-// Initialize player with client
-player.setClient(client);
-
 const readyEvent = require("./events/ready");
 client.once("clientReady", (...a) => readyEvent.execute(...a));
 
