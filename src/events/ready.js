@@ -27,29 +27,14 @@ module.exports = {
       status: 'online',
     });
 
-    // Reconnect to bound voice channels
+    // Restore control channel references from config so panel updates work
+    // (no auto voice-connect on startup — users run @Bot play to connect)
     const c = config.load();
     for (const guildId of Object.keys(c.boundChannels || {})) {
       const b = c.boundChannels[guildId];
-      if (!b?.voiceChannelId) continue;
-
-      try {
-        const ch = await client.channels.fetch(b.voiceChannelId).catch(() => null);
-        if (!ch || !ch.isVoiceBased()) {
-          log.warn('READY', `Stale bound channel ${b.voiceChannelId}, clearing`);
-          config.clearBoundChannel(guildId);
-          continue;
-        }
-        await player.connect(ch);
-
-        // Set control channel for the guild so panel updates work
-        const s = player.get(guildId);
-        if (b.commandChannelId) s.controlChannelId = b.commandChannelId;
-
-        log.success('READY', `Reconnected voice in guild ${guildId}`);
-      } catch (err) {
-        log.error('READY_CONNECT', err);
-      }
+      if (!b?.commandChannelId) continue;
+      const s = player.get(guildId);
+      s.controlChannelId = b.commandChannelId;
     }
   },
 };

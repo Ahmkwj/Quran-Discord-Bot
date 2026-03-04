@@ -52,15 +52,22 @@ client.on(cmdHandler.name, m => cmdHandler.execute(m, client));
 const intHandler = require('./handlers/interactions');
 client.on(intHandler.name, i => intHandler.execute(i));
 
-// Reconnect bot to bound voice channel if moved
+// If the bot gets moved to the wrong channel while actively playing, move it back
 client.on('voiceStateUpdate', (oldState, newState) => {
   if (newState.member?.id !== client.user?.id || !newState.guild) return;
-  const bound = config.getBoundChannel(newState.guild.id);
+
+  const guildId = newState.guild.id;
+  const s = player.get(guildId);
+
+  // Only intervene if the bot is actively playing or paused — not on idle/startup
+  if (!s.playing && !s.paused) return;
+
+  const bound = config.getBoundChannel(guildId);
   if (!bound || newState.channelId === bound.voiceChannelId) return;
 
   client.channels.fetch(bound.voiceChannelId)
-    .then(ch => { if (ch?.isVoiceBased?.()) player.connect(ch).catch(e => log.error('VOICE_STATE', e)); })
-    .catch(e => log.error('VOICE_STATE', e));
+    .then(ch => { if (ch?.isVoiceBased?.()) player.connect(ch).catch(() => {}); })
+    .catch(() => {});
 });
 
 // ── Error handling ───────────────────────────────────────────────────────────
