@@ -1,6 +1,6 @@
 "use strict";
 
-const { PermissionFlags } = require("discord.js");
+const { PermissionFlagsBits } = require("discord.js");
 const { PermissionError, InvalidChannelError } = require("../errors/ErrorTypes");
 
 /**
@@ -34,14 +34,14 @@ class ConnectionValidator {
       });
     }
 
-    if (!permissions.has(PermissionFlags.Connect)) {
+    if (!permissions.has(PermissionFlagsBits.Connect)) {
       throw new PermissionError("Missing CONNECT permission", {
         channelId: channel.id,
         channelName: channel.name
       });
     }
 
-    if (!permissions.has(PermissionFlags.Speak)) {
+    if (!permissions.has(PermissionFlagsBits.Speak)) {
       throw new PermissionError("Missing SPEAK permission", {
         channelId: channel.id,
         channelName: channel.name
