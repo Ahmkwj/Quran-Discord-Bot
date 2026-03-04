@@ -137,10 +137,22 @@ module.exports = {
     }
 
     async function ensureConnection() {
-      if (bound && !s.connection) {
-        const ch = await interaction.client.channels.fetch(bound.voiceChannelId);
-        if (ch?.isVoiceBased?.()) {
-          await player.connect(ch);
+      if (bound) {
+        try {
+          // Check if connection exists and is valid
+          const hasValidConnection = s.connection &&
+            s.connection.state?.status !== "destroyed";
+
+          if (!hasValidConnection) {
+            const ch = await interaction.client.channels.fetch(bound.voiceChannelId);
+            if (!ch?.isVoiceBased?.()) {
+              throw new Error("Voice channel not found or is not voice-based");
+            }
+            await player.connect(ch);
+          }
+        } catch (err) {
+          log.error("ENSURE_CONNECTION", err, { stack: false });
+          throw err; // Re-throw to let caller handle
         }
       }
     }
@@ -430,7 +442,14 @@ module.exports = {
       }
     } catch (err) {
       log.error("INTERACTION", err);
-      await epErr("Something went wrong. Please try again.");
+      // Provide more helpful error messages based on error type
+      let errorMsg = "Something went wrong. Please try again.";
+      if (err.message?.includes("voice connection") || err.message?.includes("Voice channel")) {
+        errorMsg = "Failed to connect to voice channel. Please make sure the bot has permissions and try again.";
+      } else if (err.message?.includes("timeout") || err.message?.includes("15 seconds")) {
+        errorMsg = "Voice connection timed out. Please check your network and try again.";
+      }
+      await epErr(errorMsg);
     }
   },
 };

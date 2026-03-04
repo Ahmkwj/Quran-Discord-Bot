@@ -24,6 +24,17 @@ function setClient(client) {
   discordClient = client;
 }
 
+// Helper to safely destroy a connection
+function safeDestroyConnection(connection) {
+  try {
+    if (connection && connection.state?.status !== VoiceConnectionStatus.Destroyed) {
+      connection.destroy();
+    }
+  } catch (err) {
+    log.error("SAFE_DESTROY", err, { stack: false });
+  }
+}
+
 function updatePresence() {
   if (!discordClient?.user) return;
   const defaultActivity = config.getActivity();
@@ -82,17 +93,27 @@ async function connect(voiceChannel) {
 
   const existing = getVoiceConnection(guildId);
   if (existing) {
+    // If connecting to same channel, try to reuse connection
     if (existing.joinConfig?.channelId === voiceChannel.id) {
       try {
+        // Check if already ready
+        if (existing.state?.status === VoiceConnectionStatus.Ready) {
+          s.connection = existing;
+          s.voiceChannelId = voiceChannel.id;
+          return;
+        }
+        // Try to wait for ready state
         await entersState(existing, VoiceConnectionStatus.Ready, 10_000);
         s.connection = existing;
         s.voiceChannelId = voiceChannel.id;
         return;
-      } catch {
-        existing.destroy();
+      } catch (err) {
+        log.warn("CONNECT", "Existing connection failed, creating new one");
+        safeDestroyConnection(existing);
       }
     } else {
-      existing.destroy();
+      // Different channel, destroy old connection
+      safeDestroyConnection(existing);
     }
   }
 
@@ -103,7 +124,14 @@ async function connect(voiceChannel) {
     selfDeaf: true,
   });
 
-  await entersState(conn, VoiceConnectionStatus.Ready, 15_000);
+  try {
+    await entersState(conn, VoiceConnectionStatus.Ready, 15_000);
+  } catch (err) {
+    log.error("CONNECT", err, { stack: false });
+    safeDestroyConnection(conn);
+    throw new Error("Failed to establish voice connection within 15 seconds");
+  }
+
   s.connection = conn;
   s.voiceChannelId = voiceChannel.id;
 
@@ -149,6 +177,20 @@ function reconnectWithBackoff(guildId) {
     discordClient.channels.fetch(bound.voiceChannelId).then((ch) => {
       if (!ch?.isVoiceBased()) return;
 
+      // Clean up old connection before reconnecting
+      if (s.connection) {
+        safeDestroyConnection(s.connection);
+      }
+      if (s.player) {
+        try {
+          if (s.idleHandler) {
+            s.player.off(AudioPlayerStatus.Idle, s.idleHandler);
+          }
+          s.player.removeAllListeners();
+          s.player.stop(true);
+        } catch (_) {}
+      }
+
       s.connection = null;
       s.player = null;
       s.playing = false;
@@ -182,8 +224,19 @@ function reconnectWithBackoff(guildId) {
 
 async function startPlayback(guildId, surahNumber) {
   const s = get(guildId);
-  if (!s.connection || !s.moshaf) {
-    throw new Error("No connection or moshaf");
+
+  // Validate required state
+  if (!s.connection) {
+    throw new Error("No voice connection established");
+  }
+  if (!s.moshaf) {
+    throw new Error("No moshaf selected");
+  }
+  if (!s.moshaf.server) {
+    throw new Error("Invalid moshaf - missing server URL");
+  }
+  if (!surahNumber || surahNumber < 1 || surahNumber > 114) {
+    throw new Error(`Invalid surah number: ${surahNumber}`);
   }
 
   // Validate connection is ready
@@ -194,6 +247,7 @@ async function startPlayback(guildId, surahNumber) {
     throw new Error("Voice connection is not ready. Please try again.");
   }
 
+  log.info("PLAYBACK", `Starting playback: Surah ${surahNumber} from ${s.reciter?.name || 'Unknown reciter'}`);
   const url = buildUrl(s.moshaf.server, surahNumber);
 
   // Clean up old player and listener
@@ -447,16 +501,14 @@ async function resetToWelcome(guildId) {
 
 async function disconnect(guildId) {
   const s = get(guildId);
-  
+
   stopPlayback(guildId);
-  
+
   if (s.connection) {
-    try {
-      s.connection.destroy();
-    } catch (_) {}
+    safeDestroyConnection(s.connection);
     s.connection = null;
   }
-  
+
   s.queue = [];
   s.queueIndex = 0;
   s.voiceChannelId = null;
@@ -505,12 +557,41 @@ async function skipPrev(guildId) {
 function destroy(guildId) {
   const s = guilds.get(guildId);
   if (!s) return;
-  try {
-    s.player && s.player.stop(true);
-  } catch (_) {}
-  try {
-    s.connection && s.connection.destroy();
-  } catch (_) {}
+
+  // Clean up player
+  if (s.player) {
+    try {
+      if (s.idleHandler) {
+        s.player.off(AudioPlayerStatus.Idle, s.idleHandler);
+      }
+      s.player.removeAllListeners();
+      s.player.stop(true);
+    } catch (err) {
+      log.error("DESTROY_PLAYER", err, { stack: false });
+    }
+  }
+
+  // Clean up resource
+  if (s.resource) {
+    try {
+      if (s.resource.playStream) {
+        s.resource.playStream.destroy();
+      }
+    } catch (err) {
+      log.error("DESTROY_RESOURCE", err, { stack: false });
+    }
+  }
+
+  // Clean up connection
+  if (s.connection) {
+    safeDestroyConnection(s.connection);
+  }
+
+  // Clear any pending timeouts
+  if (s.reconnectTimeout) {
+    clearTimeout(s.reconnectTimeout);
+  }
+
   guilds.delete(guildId);
 }
 
