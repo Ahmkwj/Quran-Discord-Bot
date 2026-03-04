@@ -222,8 +222,7 @@ function reconnectWithBackoff(guildId) {
 async function startPlayback(guildId, surahNumber) {
   const s = get(guildId);
 
-  const connStatus = s.connection?.state?.status;
-  if (!s.connection || connStatus === VoiceConnectionStatus.Destroyed || connStatus === VoiceConnectionStatus.Disconnected) {
+  if (!s.connection || s.connection.state?.status === VoiceConnectionStatus.Destroyed) {
     throw new Error('Not connected to voice. Use the play command first.');
   }
   if (!s.moshaf || !s.moshaf.server) {

@@ -37,25 +37,15 @@ module.exports = {
     s.controlChannelId = ctx.channel.id;
     s.controlMsgId = null;
 
-    // Connect first — show a clear error if it fails
-    try {
-      await player.connect(vc);
-    } catch (err) {
-      log.error('PLAY', err);
-      return ctx.reply(errReply(
-        'Could not connect to the voice channel. Make sure the bot has **Connect** and **Speak** permissions and try again.'
-      ));
-    }
-
-    config.setBoundChannel(ctx.guild.id, vc.id, ctx.channel.id);
-
     try {
       const { embeds, components } = buildPanel(s);
       const sent = await ctx.channel.send({ embeds, components });
       s.controlMsgId = sent.id;
+      config.setBoundChannel(ctx.guild.id, vc.id, ctx.channel.id);
+      player.connect(vc).catch(e => log.error('VOICE_CONNECT', e));
     } catch (e) {
       log.error('PLAY', e);
-      ctx.reply(errReply('Could not send the panel. Check bot text channel permissions.')).catch(() => {});
+      ctx.reply(errReply('Could not send the panel. Check bot permissions.')).catch(() => {});
     }
   },
 };
