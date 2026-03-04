@@ -1,68 +1,52 @@
-"use strict";
+'use strict';
 
-const { EmbedBuilder } = require("discord.js");
-const config = require("../utils/config");
-const { requireOwnerOrMod, getOwnerId } = require("../utils/permissions");
-const { errReply } = require("../utils/panel");
-
-const EMBED_COLOR = 0x2b5f4a;
+const { EmbedBuilder } = require('discord.js');
+const config = require('../utils/config');
+const { requireOwnerOrMod, getOwnerId } = require('../utils/permissions');
+const { errReply } = require('../utils/panel');
 
 module.exports = {
-  name: "settings",
-  description: "(Owner/Mod) Show current bot settings",
+  name: 'settings',
+  description: '(Owner/Mod) Show current bot settings',
 
   async execute(ctx) {
     if (!(await requireOwnerOrMod(ctx, errReply))) return;
 
-    const guildId = ctx.guild?.id;
     const ownerId = getOwnerId();
     const mods = config.getMods();
     const activity = config.getActivity();
-    const bound = guildId ? config.getBoundChannel(guildId) : null;
-    const defaultVolume = process.env.DEFAULT_VOLUME || "80";
+    const bound = ctx.guildId ? config.getBoundChannel(ctx.guildId) : null;
 
-    let ownerText = "Not set (add OWNER_ID to .env)";
+    let ownerText = 'Not set (add OWNER_ID to .env)';
     if (ownerId) {
-      try {
-        const owner = await ctx.client.users.fetch(ownerId).catch(() => null);
-        ownerText = owner ? `${owner.tag} (\`${ownerId}\`)` : `\`${ownerId}\``;
-      } catch {
-        ownerText = `\`${ownerId}\``;
-      }
+      const owner = await ctx.client.users.fetch(ownerId).catch(() => null);
+      ownerText = owner ? `${owner.tag} (\`${ownerId}\`)` : `\`${ownerId}\``;
     }
 
-    let modsText = "None";
+    let modsText = 'None';
     if (mods.length > 0) {
-      const modList = await Promise.all(
-        mods.map(async (id) => {
-          try {
-            const u = await ctx.client.users.fetch(id).catch(() => null);
-            return u ? `${u.tag} (\`${id}\`)` : `\`${id}\``;
-          } catch {
-            return `\`${id}\``;
-          }
-        })
-      );
-      modsText = modList.join(", ");
+      const list = await Promise.all(mods.map(async id => {
+        const u = await ctx.client.users.fetch(id).catch(() => null);
+        return u ? `${u.tag} (\`${id}\`)` : `\`${id}\``;
+      }));
+      modsText = list.join(', ');
     }
 
-    const activityText = `${activity.type || "Playing"}: ${activity.name || "Use play to begin"}`;
-
-    let boundText = "Not set (run play in a channel to set)";
-    if (bound && bound.voiceChannelId && bound.commandChannelId) {
-      boundText = `Voice: <#${bound.voiceChannelId}>\nCommand channel: <#${bound.commandChannelId}>`;
+    let boundText = 'Not set (run play to bind)';
+    if (bound) {
+      boundText = `Voice: <#${bound.voiceChannelId}>\nCommand: <#${bound.commandChannelId}>`;
     }
 
     const embed = new EmbedBuilder()
-      .setColor(EMBED_COLOR)
-      .setTitle("Bot settings")
+      .setColor(0x1a6b47)
+      .setTitle('Bot Settings')
       .setTimestamp()
       .addFields(
-        { name: "Owner", value: ownerText, inline: false },
-        { name: "Moderators", value: modsText, inline: false },
-        { name: "Activity", value: activityText, inline: true },
-        { name: "Default volume", value: `${defaultVolume}%`, inline: true },
-        { name: "Bound channel", value: boundText, inline: false }
+        { name: 'Owner', value: ownerText, inline: false },
+        { name: 'Moderators', value: modsText, inline: false },
+        { name: 'Activity', value: `${activity.type}: ${activity.name}`, inline: true },
+        { name: 'Default volume', value: `${process.env.DEFAULT_VOLUME || '80'}%`, inline: true },
+        { name: 'Bound channels', value: boundText, inline: false },
       );
 
     await ctx.reply({ embeds: [embed] });

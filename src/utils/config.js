@@ -1,59 +1,54 @@
-"use strict";
+'use strict';
 
-const fs = require("fs");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
+const log = require('./logger');
 
-const CONFIG_PATH = path.join(process.cwd(), "config.json");
+const CONFIG_PATH = path.join(process.cwd(), 'config.json');
 
 const DEFAULTS = {
   mods: [],
-  activity: { type: "Playing", name: "Use play to begin" },
+  activity: { type: 'Playing', name: 'Use play to begin' },
   boundChannels: {},
 };
 
 let cache = null;
+let saveTimer = null;
 
 function load() {
   if (cache) return cache;
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+    const raw = fs.readFileSync(CONFIG_PATH, 'utf8');
     cache = { ...DEFAULTS, ...JSON.parse(raw) };
   } catch (e) {
-    if (e.code === "ENOENT") {
+    if (e.code === 'ENOENT') {
       cache = { ...DEFAULTS };
-      save();
-    } else throw e;
+      saveSync();
+    } else {
+      log.error('CONFIG', e);
+      cache = { ...DEFAULTS };
+    }
   }
   if (!Array.isArray(cache.mods)) cache.mods = [];
-  if (!cache.activity || typeof cache.activity.name !== "string") cache.activity = { ...DEFAULTS.activity };
-  if (typeof cache.boundChannels !== "object" || cache.boundChannels === null) cache.boundChannels = {};
+  if (!cache.activity || typeof cache.activity !== 'object') cache.activity = { ...DEFAULTS.activity };
+  if (typeof cache.boundChannels !== 'object' || cache.boundChannels === null) cache.boundChannels = {};
   return cache;
 }
 
-function getBoundChannel(guildId) {
-  const c = load();
-  const b = c.boundChannels[String(guildId)];
-  return b && b.voiceChannelId && b.commandChannelId ? b : null;
-}
-
-function setBoundChannel(guildId, voiceChannelId, commandChannelId) {
-  const c = load();
-  c.boundChannels[String(guildId)] = { voiceChannelId: String(voiceChannelId), commandChannelId: String(commandChannelId) };
-  save();
-  return c.boundChannels[String(guildId)];
-}
-
-function clearBoundChannel(guildId) {
-  const c = load();
-  if (!c.boundChannels[String(guildId)]) return false;
-  delete c.boundChannels[String(guildId)];
-  save();
-  return true;
+function saveSync() {
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(cache || DEFAULTS, null, 2), 'utf8');
+  } catch (e) {
+    log.error('CONFIG_SAVE', e);
+  }
 }
 
 function save() {
-  const data = cache || load();
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2), "utf8");
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveSync();
+  }, 500);
 }
 
 function getMods() {
@@ -85,9 +80,40 @@ function getActivity() {
 
 function setActivity(type, name) {
   const c = load();
-  c.activity = { type: type || "Playing", name: name || "Use play to begin" };
+  c.activity = { type: type || 'Playing', name: name || 'Use play to begin' };
   save();
   return c.activity;
+}
+
+function getBoundChannel(guildId) {
+  const c = load();
+  const b = c.boundChannels[String(guildId)];
+  return b && b.voiceChannelId && b.commandChannelId ? b : null;
+}
+
+function setBoundChannel(guildId, voiceChannelId, commandChannelId) {
+  const c = load();
+  c.boundChannels[String(guildId)] = {
+    voiceChannelId: String(voiceChannelId),
+    commandChannelId: String(commandChannelId),
+  };
+  save();
+}
+
+function clearBoundChannel(guildId) {
+  const c = load();
+  if (!c.boundChannels[String(guildId)]) return false;
+  delete c.boundChannels[String(guildId)];
+  save();
+  return true;
+}
+
+function flushSync() {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (cache) saveSync();
 }
 
 module.exports = {
@@ -101,4 +127,5 @@ module.exports = {
   getBoundChannel,
   setBoundChannel,
   clearBoundChannel,
+  flushSync,
 };

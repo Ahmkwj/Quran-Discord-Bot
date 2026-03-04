@@ -1,6 +1,6 @@
-"use strict";
+'use strict';
 
-const config = require("./config");
+const config = require('./config');
 
 function getOwnerId() {
   const id = process.env.OWNER_ID;
@@ -9,7 +9,7 @@ function getOwnerId() {
 
 function isOwner(userId) {
   const owner = getOwnerId();
-  return owner && String(userId) === owner;
+  return owner !== null && String(userId) === owner;
 }
 
 function isMod(userId) {
@@ -22,30 +22,20 @@ function isOwnerOrMod(userId) {
 
 async function requireOwner(ctx, errReply) {
   if (isOwner(ctx.user.id)) return true;
-  const owner = getOwnerId();
-  const msg = owner
-    ? "Only the bot owner can use this command."
-    : "Owner is not set. Add OWNER_ID to your .env file.";
+  const msg = getOwnerId()
+    ? 'Only the bot owner can use this command.'
+    : 'Owner is not set. Add OWNER_ID to your .env file.';
   await ctx.reply(errReply(msg)).catch(() => {});
   return false;
 }
 
 async function requireOwnerOrMod(ctx, errReply) {
   if (isOwnerOrMod(ctx.user.id)) return true;
-  const owner = getOwnerId();
-  const msg = owner
-    ? "Only the bot owner and moderators can use this command."
-    : "Owner is not set. Add OWNER_ID to your .env file.";
+  const msg = getOwnerId()
+    ? 'Only the bot owner and moderators can use this command.'
+    : 'Owner is not set. Add OWNER_ID to your .env file.';
   await ctx.reply(errReply(msg)).catch(() => {});
   return false;
 }
 
-module.exports = {
-  getOwnerId,
-  isOwner,
-  isMod,
-  isOwnerOrMod,
-  requireOwner,
-  requireOwnerOrMod,
-};
-
+module.exports = { getOwnerId, isOwner, isMod, isOwnerOrMod, requireOwner, requireOwnerOrMod };

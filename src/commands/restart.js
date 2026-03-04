@@ -1,21 +1,23 @@
-"use strict";
+'use strict';
 
-const { errReply, successReply } = require("../utils/panel");
-const { requireOwnerOrMod } = require("../utils/permissions");
-
-const EXIT_DELAY_MS = 1500;
+const { errReply, successReply } = require('../utils/panel');
+const { requireOwnerOrMod } = require('../utils/permissions');
+const player = require('../utils/player');
+const config = require('../utils/config');
 
 module.exports = {
-  name: "restart",
-  description: "(Owner/Mod) Restart the bot. Use with a process manager (e.g. PM2) for auto-restart.",
+  name: 'restart',
+  description: '(Owner/Mod) Restart the bot (requires PM2 or similar)',
 
   async execute(ctx) {
     if (!(await requireOwnerOrMod(ctx, errReply))) return;
-    await ctx.reply(
-      successReply(
-        "Restarting. The bot is shutting down. If you use a process manager (PM2, systemd, Docker), it will start again automatically."
-      )
-    );
-    setTimeout(() => process.exit(0), EXIT_DELAY_MS);
+
+    await ctx.reply(successReply('Restarting. The bot will come back automatically if running under PM2.'));
+
+    // Graceful cleanup
+    player.shutdownAll();
+    config.flushSync();
+
+    setTimeout(() => process.exit(0), 1500);
   },
 };

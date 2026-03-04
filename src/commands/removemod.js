@@ -1,23 +1,20 @@
-"use strict";
+'use strict';
 
-const { errReply, successReply } = require("../utils/panel");
-const { requireOwner } = require("../utils/permissions");
-const config = require("../utils/config");
+const { errReply, successReply } = require('../utils/panel');
+const { requireOwner } = require('../utils/permissions');
+const config = require('../utils/config');
 
 module.exports = {
-  name: "removemod",
-  description: "(Owner) Remove a user from bot moderators. Usage: @Bot removemod @user",
+  name: 'removemod',
+  description: '(Owner) Remove a moderator. Usage: @Bot removemod @user',
 
   async execute(ctx) {
     if (!(await requireOwner(ctx, errReply))) return;
+
     const user = ctx.options.getUser();
-    if (!user) {
-      return ctx.reply(errReply("Mention a user to remove. Example: @Bot removemod @username"));
-    }
-    const removed = config.removeMod(user.id);
-    if (!removed) {
-      return ctx.reply(errReply(`${user.tag} is not a moderator.`));
-    }
-    await ctx.reply(successReply(`${user.tag} has been removed from moderators.`));
+    if (!user) return ctx.reply(errReply('Mention a user. Example: @Bot removemod @username'));
+
+    if (!config.removeMod(user.id)) return ctx.reply(errReply(`${user.tag} is not a moderator.`));
+    await ctx.reply(successReply(`${user.tag} removed from moderators.`));
   },
 };

@@ -4,7 +4,7 @@ const SURAHS = [
   { n: 1,   ar: 'الفاتحة',      en: 'Al-Fatihah' },
   { n: 2,   ar: 'البقرة',        en: 'Al-Baqarah' },
   { n: 3,   ar: 'آل عمران',      en: "Ali 'Imran" },
-  { n: 4,   ar: 'النساء',        en: "An-Nisa" },
+  { n: 4,   ar: 'النساء',        en: 'An-Nisa' },
   { n: 5,   ar: 'المائدة',       en: "Al-Ma'idah" },
   { n: 6,   ar: 'الأنعام',       en: "Al-An'am" },
   { n: 7,   ar: 'الأعراف',       en: "Al-A'raf" },
@@ -114,11 +114,13 @@ const SURAHS = [
   { n: 111, ar: 'المسد',         en: 'Al-Masad' },
   { n: 112, ar: 'الإخلاص',       en: 'Al-Ikhlas' },
   { n: 113, ar: 'الفلق',         en: 'Al-Falaq' },
-  { n: 114, ar: 'الناس',         en: 'An-Nas' }
+  { n: 114, ar: 'الناس',         en: 'An-Nas' },
 ];
 
+const surahMap = new Map(SURAHS.map(s => [s.n, s]));
+
 function getSurah(number) {
-  return SURAHS.find(s => s.n === number) || { n: number, ar: `سورة ${number}`, en: `Surah ${number}` };
+  return surahMap.get(number) || { n: number, ar: `سورة ${number}`, en: `Surah ${number}` };
 }
 
 module.exports = { SURAHS, getSurah };

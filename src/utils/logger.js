@@ -1,43 +1,32 @@
-"use strict";
+'use strict';
 
-const PAD = 14;
-const LINE = "------------------------------------------------------------";
+const RESET = '\x1b[0m';
+const COLORS = {
+  info:    '\x1b[36m',
+  success: '\x1b[32m',
+  warn:    '\x1b[33m',
+  error:   '\x1b[31m',
+};
 
 function ts() {
   return new Date().toISOString();
 }
 
-function tag(name) {
-  return `[${String(name).padEnd(PAD)}]`;
+function fmt(level, ctx, msg) {
+  const c = COLORS[level] || '';
+  return `${c}[${level.toUpperCase().padEnd(5)}]${RESET} ${ts()} [${ctx.padEnd(16)}] ${msg}`;
 }
 
-function info(context, message) {
-  console.log(`${tag(context)} ${ts()}  ${message}`);
-}
+const info    = (ctx, msg) => console.log(fmt('info', ctx, msg));
+const success = (ctx, msg) => console.log(fmt('success', ctx, msg));
+const warn    = (ctx, msg) => console.warn(fmt('warn', ctx, msg));
 
-function success(context, message) {
-  console.log(`${tag(context)} ${ts()}  ${message}`);
-}
-
-function warn(context, message) {
-  console.warn(`${tag(context)} ${ts()}  ${message}`);
-}
-
-function error(context, err, options = {}) {
-  const showStack = options.stack !== false && err && err.stack;
-  const msg = err && (err.message || String(err));
-  const name = err && err.name ? err.name : "Error";
-
-  console.error("");
-  console.error(LINE);
-  console.error(`${tag("ERROR")} ${ts()}`);
-  console.error(`${tag(context)} ${name}: ${msg}`);
-  if (showStack && err && err.stack) {
-    console.error("");
+function error(ctx, err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error(fmt('error', ctx, msg));
+  if (err instanceof Error && err.stack) {
     console.error(err.stack);
   }
-  console.error(LINE);
-  console.error("");
 }
 
 module.exports = { info, success, warn, error };

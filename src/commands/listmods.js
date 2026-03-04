@@ -1,43 +1,44 @@
-"use strict";
+'use strict';
 
-const { errReply, successReply } = require("../utils/panel");
-const { requireOwner, getOwnerId } = require("../utils/permissions");
-const config = require("../utils/config");
+const { EmbedBuilder } = require('discord.js');
+const { errReply } = require('../utils/panel');
+const { requireOwner, getOwnerId } = require('../utils/permissions');
+const config = require('../utils/config');
 
 module.exports = {
-  name: "listmods",
-  description: "(Owner) List bot owner and moderators",
+  name: 'listmods',
+  description: '(Owner) List owner and moderators',
 
   async execute(ctx) {
     if (!(await requireOwner(ctx, errReply))) return;
+
     const ownerId = getOwnerId();
     const mods = config.getMods();
-    const lines = [];
+
+    let ownerLine = 'Not set';
     if (ownerId) {
-      try {
-        const owner = await ctx.client.users.fetch(ownerId).catch(() => null);
-        lines.push(`**Owner:** ${owner ? owner.tag : "Unknown"} (\`${ownerId}\`)`);
-      } catch {
-        lines.push(`**Owner:** \`${ownerId}\``);
-      }
-    } else {
-      lines.push("**Owner:** Not set (add OWNER_ID to .env)");
+      const owner = await ctx.client.users.fetch(ownerId).catch(() => null);
+      ownerLine = owner ? `${owner.tag} (\`${ownerId}\`)` : `\`${ownerId}\``;
     }
-    if (mods.length === 0) {
-      lines.push("**Mods:** None. Use addmod to add moderators.");
-    } else {
-      const modList = await Promise.all(
-        mods.map(async (id) => {
-          try {
-            const u = await ctx.client.users.fetch(id).catch(() => null);
-            return u ? `${u.tag} (\`${id}\`)` : `\`${id}\``;
-          } catch {
-            return `\`${id}\``;
-          }
-        })
-      );
-      lines.push("**Mods:** " + modList.join(", "));
+
+    let modsLine = 'None. Use `addmod` to add moderators.';
+    if (mods.length > 0) {
+      const list = await Promise.all(mods.map(async id => {
+        const u = await ctx.client.users.fetch(id).catch(() => null);
+        return u ? `${u.tag} (\`${id}\`)` : `\`${id}\``;
+      }));
+      modsLine = list.join('\n');
     }
-    await ctx.reply(successReply("Owner and moderators\n\n" + lines.join("\n")));
+
+    const embed = new EmbedBuilder()
+      .setColor(0x1a6b47)
+      .setTitle('Owner & Moderators')
+      .addFields(
+        { name: 'Owner', value: ownerLine, inline: false },
+        { name: 'Moderators', value: modsLine, inline: false },
+      )
+      .setTimestamp();
+
+    await ctx.reply({ embeds: [embed] });
   },
 };
