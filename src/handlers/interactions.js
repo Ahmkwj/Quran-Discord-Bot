@@ -1,6 +1,7 @@
 'use strict';
 
 const { MessageFlags, EmbedBuilder } = require('discord.js');
+const { VoiceConnectionStatus } = require('@discordjs/voice');
 const player = require('../utils/player');
 const config = require('../utils/config');
 const log = require('../utils/logger');
@@ -57,8 +58,9 @@ async function ensureVoice(interaction, s) {
   const bound = config.getBoundChannel(interaction.guildId);
   if (!bound) return;
 
-  const hasConn = s.connection && s.connection.state?.status !== 'destroyed';
-  if (hasConn) return;
+  // Only treat the connection as valid if it is actually Ready
+  const isReady = s.connection?.state?.status === VoiceConnectionStatus.Ready;
+  if (isReady) return;
 
   const ch = await interaction.client.channels.fetch(bound.voiceChannelId);
   if (!ch?.isVoiceBased?.()) throw new Error('Voice channel not found.');
