@@ -65,6 +65,9 @@ function defaultState() {
     controlChannelId: null,
     controlMsgId: null,
     voiceChannelId: null,
+    idleHandler: null,
+    reconnectAttempts: 0,
+    reconnectTimeout: null,
   };
 }
 
@@ -113,7 +116,7 @@ async function connect(voiceChannel) {
     } catch {
       const bound = config.getBoundChannel(guildId);
       if (bound && discordClient) {
-        reconnectImmediately(guildId);
+        reconnectWithBackoff(guildId);
       } else {
         destroy(guildId);
       }
@@ -121,34 +124,60 @@ async function connect(voiceChannel) {
   });
 }
 
-function reconnectImmediately(guildId) {
+function reconnectWithBackoff(guildId) {
   const s = get(guildId);
   const bound = config.getBoundChannel(guildId);
   if (!bound || !discordClient) return;
 
-  const currentSurah = s.queue?.length ? s.queue[s.queueIndex] : null;
-  const wasPaused = s.paused;
-  const hadPlayback = currentSurah && s.moshaf && (s.playing || s.paused);
+  // Clear existing timeout
+  if (s.reconnectTimeout) {
+    clearTimeout(s.reconnectTimeout);
+    s.reconnectTimeout = null;
+  }
 
-  discordClient.channels.fetch(bound.voiceChannelId).then((ch) => {
-    if (!ch?.isVoiceBased()) return;
+  // Exponential backoff: 1s, 2s, 4s, 8s, 16s (max)
+  const delay = Math.min(1000 * Math.pow(2, s.reconnectAttempts), 16000);
+  s.reconnectAttempts++;
 
-    s.connection = null;
-    s.player = null;
-    s.playing = false;
-    s.paused = false;
+  log.info("RECONNECT", `Attempting reconnect in ${delay}ms (attempt ${s.reconnectAttempts})`);
 
-    connect(ch)
-      .then(() => {
-        if (hadPlayback && s.moshaf) {
-          return startPlayback(guildId, currentSurah).then(() => {
-            if (wasPaused) pause(guildId);
-            return updatePanel(guildId);
-          });
-        }
-      })
-      .catch((e) => log.error("RECONNECT", e, { stack: false }));
-  }).catch((e) => log.error("RECONNECT_FETCH", e, { stack: false }));
+  s.reconnectTimeout = setTimeout(() => {
+    const currentSurah = s.queue?.length ? s.queue[s.queueIndex] : null;
+    const wasPaused = s.paused;
+    const hadPlayback = currentSurah && s.moshaf && (s.playing || s.paused);
+
+    discordClient.channels.fetch(bound.voiceChannelId).then((ch) => {
+      if (!ch?.isVoiceBased()) return;
+
+      s.connection = null;
+      s.player = null;
+      s.playing = false;
+      s.paused = false;
+
+      connect(ch)
+        .then(() => {
+          s.reconnectAttempts = 0; // Reset on success
+
+          if (hadPlayback && s.moshaf) {
+            return startPlayback(guildId, currentSurah).then(() => {
+              if (wasPaused) pause(guildId);
+              return updatePanel(guildId);
+            });
+          }
+        })
+        .catch((e) => {
+          log.error("RECONNECT", e, { stack: false });
+
+          // Retry if under max attempts (5 = ~31s total)
+          if (s.reconnectAttempts < 5) {
+            reconnectWithBackoff(guildId);
+          } else {
+            log.error("RECONNECT_MAX", new Error("Max reconnection attempts reached"));
+            destroy(guildId);
+          }
+        });
+    }).catch((e) => log.error("RECONNECT_FETCH", e, { stack: false }));
+  }, delay);
 }
 
 async function startPlayback(guildId, surahNumber) {
@@ -157,11 +186,36 @@ async function startPlayback(guildId, surahNumber) {
     throw new Error("No connection or moshaf");
   }
 
+  // Validate connection is ready
+  try {
+    await entersState(s.connection, VoiceConnectionStatus.Ready, 5_000);
+  } catch (err) {
+    log.error("PLAYBACK_CONN", new Error("Voice connection not ready"), { stack: false });
+    throw new Error("Voice connection is not ready. Please try again.");
+  }
+
   const url = buildUrl(s.moshaf.server, surahNumber);
 
+  // Clean up old player and listener
   if (s.player) {
+    if (s.idleHandler) {
+      s.player.off(AudioPlayerStatus.Idle, s.idleHandler);
+      s.idleHandler = null;
+    }
     s.player.removeAllListeners();
     s.player.stop(true);
+  }
+
+  // Destroy old resource
+  if (s.resource) {
+    try {
+      if (s.resource.playStream) {
+        s.resource.playStream.destroy();
+      }
+    } catch (err) {
+      log.error("RESOURCE_CLEANUP", err, { stack: false });
+    }
+    s.resource = null;
   }
 
   let stream;
@@ -187,9 +241,10 @@ async function startPlayback(guildId, surahNumber) {
   s.connection.subscribe(player);
   player.play(resource);
 
-  player.once(AudioPlayerStatus.Idle, () => {
-    handleTrackEnd(guildId, surahNumber);
-  });
+  // Use .on() instead of .once() to ensure listener persists
+  const idleHandler = () => handleTrackEnd(guildId, surahNumber);
+  s.idleHandler = idleHandler;
+  player.on(AudioPlayerStatus.Idle, idleHandler);
 
   player.on("error", (err) => {
     log.error("PLAYER", err, { stack: false });
@@ -210,8 +265,16 @@ async function startNewPlayback(guildId, surahNumber) {
       if (ch?.isTextBased?.()) {
         const recent = await ch.messages.fetch({ limit: 50 });
         const botMessages = recent.filter(m => m.author.id === discordClient.user.id);
+        // Await deletions to prevent race condition
         for (const [, msg] of botMessages) {
-          msg.delete().catch(() => {});
+          try {
+            await msg.delete();
+            await new Promise(r => setTimeout(r, 100)); // Avoid rate limit
+          } catch (err) {
+            if (err.code !== 10008) { // Ignore "Unknown Message"
+              log.error("DELETE_OLD", err, { stack: false });
+            }
+          }
         }
       }
     } catch (e) {
@@ -300,6 +363,13 @@ function handleTrackEnd(guildId, finishedSurah) {
       s.queueIndex = 0;
       playNext(next);
       return;
+    } else if (pos !== -1 && pos === all.length - 1) {
+      // Reached end of available surahs
+      log.info("AUTO_NEXT", "Reached end of available surahs for this reciter");
+      s.playing = false;
+      updatePanel(guildId).catch(() => {});
+      updatePresence();
+      return;
     }
   }
 
@@ -329,8 +399,18 @@ function resume(guildId) {
 function stopPlayback(guildId) {
   const s = get(guildId);
   if (s.player) {
+    if (s.idleHandler) {
+      s.player.off(AudioPlayerStatus.Idle, s.idleHandler);
+      s.idleHandler = null;
+    }
     s.player.removeAllListeners();
     s.player.stop(true);
+  }
+  if (s.resource) {
+    try {
+      if (s.resource.playStream) s.resource.playStream.destroy();
+    } catch (_) {}
+    s.resource = null;
   }
   s.playing = false;
   s.paused = false;

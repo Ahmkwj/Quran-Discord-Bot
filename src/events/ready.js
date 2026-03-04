@@ -33,10 +33,27 @@ module.exports = {
     for (const guildId of Object.keys(boundChannels)) {
       const b = boundChannels[guildId];
       if (!b || !b.voiceChannelId) continue;
+
       try {
         const ch = await client.channels.fetch(b.voiceChannelId).catch(() => null);
-        if (ch && ch.isVoiceBased()) await player.connect(ch);
-      } catch (_) {}
+
+        if (!ch) {
+          log.warn("READY", `Bound voice channel ${b.voiceChannelId} no longer exists in guild ${guildId}`);
+          config.clearBoundChannel(guildId);
+          continue;
+        }
+
+        if (!ch.isVoiceBased()) {
+          log.warn("READY", `Bound channel ${b.voiceChannelId} is not a voice channel`);
+          config.clearBoundChannel(guildId);
+          continue;
+        }
+
+        await player.connect(ch);
+        log.success("READY", `Connected to voice channel in guild ${guildId}`);
+      } catch (err) {
+        log.error("READY_CONNECT", err, { stack: false });
+      }
     }
   },
 };

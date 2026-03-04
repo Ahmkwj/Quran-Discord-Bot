@@ -29,7 +29,7 @@ const AUDIO_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 async function fetchAudioStream(url) {
   const res = await axios.get(url, {
     responseType: 'stream',
-    timeout: 30000,
+    timeout: 120000, // 2 minutes to handle large surahs (e.g., Al-Baqarah)
     maxRedirects: 5,
     validateStatus: (status) => status >= 200 && status < 400,
     headers: {

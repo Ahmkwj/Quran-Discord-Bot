@@ -16,11 +16,34 @@ const {
 const { fetchReciters, parseSurahList } = require("../utils/api");
 
 const sessions = new Map();
+const SESSION_TTL = 60 * 60 * 1000; // 1 hour
 
 function getSession(userId) {
-  if (!sessions.has(userId)) sessions.set(userId, {});
-  return sessions.get(userId);
+  if (!sessions.has(userId)) {
+    sessions.set(userId, { createdAt: Date.now() });
+  }
+  const session = sessions.get(userId);
+
+  // Check expiration
+  if (Date.now() - session.createdAt > SESSION_TTL) {
+    sessions.delete(userId);
+    return getSession(userId); // Create new session
+  }
+
+  return session;
 }
+
+// Periodic cleanup
+function cleanupExpiredSessions() {
+  const now = Date.now();
+  for (const [userId, session] of sessions.entries()) {
+    if (now - session.createdAt > SESSION_TTL) {
+      sessions.delete(userId);
+    }
+  }
+}
+
+setInterval(cleanupExpiredSessions, 30 * 60 * 1000); // Every 30 minutes
 
 function filterRecitersByName(reciters, query) {
   const q = query.trim().toLowerCase();
@@ -333,6 +356,16 @@ module.exports = {
         if (!sess.reciter || !sess.moshaf) {
           await interaction.deferUpdate();
           return epErr("Selection expired. Click Pick Reciter again.");
+        }
+
+        // Validate surah is in moshaf's list
+        const availableSurahs = parseSurahList(sess.moshaf.surah_list);
+        if (!availableSurahs.includes(surahNum)) {
+          await interaction.deferUpdate();
+          return epErr(
+            `Surah ${surahNum} is not available in this recitation. ` +
+            `This reciter has ${availableSurahs.length} surahs available.`
+          );
         }
 
         await interaction.deferUpdate();
